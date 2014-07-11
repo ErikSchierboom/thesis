@@ -1,0 +1,34 @@
+\section{PVS}
+
+\subsection{Introduction}
+PVS stands for Prototype Verification System and has been developed by SRI International, an independent, non-profit research institute \cite{sri06nonprofit}. The PVS language is a simply typed, higher-order logic language. The language offers built-in types such as booleans and integers, but also supports custom defined types. There are several type-constructors available, ranging from functions to enumerations. PVS also supports (and includes) inductively defined data types such as lists and binary trees. To help in creating proofs, PVS by default supplies the user with many lemmas that can be used in creating a proof\footnote{An example is the lemma \emph{reverse\_reverse}, which states that reversing a list twice results in the original list.}.\emptyline
+
+In PVS, specifications can be written just like in any regular functional language. Specifications are however not created to generate an executable, but with the goal of proving properties of those specifications. PVS thus cannot be used directly to create a provably correct program, but it could create a provably correct program specification \cite{miller95formal}. Having a provably correct program specification is particularly useful when designing a life-critical application\footnote{We define a life-critical application as one where a failure in the application might result in the loss of one or more lives.} such as the software running a space shuttle. In fact, NASA has been using PVS for it's space shuttle program \cite{crow98formalizing} and has actively participated in PVS-related research \cite{vito03application}.\emptyline
+
+The PVS theorem prover lies at the heart of every proof in PVS; it has a predefined collection of inference procedures which the user can apply interactively within a sequent calculus framework. Examples of inference procedures are rewriting, simplifying and applying induction. There are also predefined proof strategies, which are essentially just combinations of the inference procedures. PVS also allows the user to create his or her own strategies.\emptyline
+
+For those unfamiliar with sequent calculus, a short description will now follow. The objective of a proof is to generate a proof tree of \emph{sequents} in which all leaves are trivially true. Each node of a proof tree is such a sequent. A sequent is a combination of \emph{antecedents} and \emph{consequents}. Sequents are interpreted such that the conjuction of the antecedents implies the disjunction of the consequents. Less formally, the antecedents are what is assumed to be true and the consequents are what one wants to prove to be true.
+
+\subsection{Features}
+We will now discuss some of the more noteworthy PVS features which have found their way into our research.
+
+\subsubsection{Theory importing}
+Every declaration (such as lemmas, functions or types) defined in PVS belongs to a single, named theory. For ease of use, it is possible to have one theory import other theories (as long as there are no circular references), which definitions can then be used. This allows one to create modular theories, where general purpose declarations can be defined once and used more than once.
+
+\subsubsection{Extensible records}
+From PVS version 4.0 and up, the concept of extensible records has been introduced into PVS. This concept allows one record to extend another record. This means that when a record extends another record, it automatically contains (or inherits) all fields defined in the record which it extends. This mechanism can be used to define a simple type of inheritance. The example below shows three record types: \emph{record1} is a regular record type, but \emph{record3} inherits from the \emph{record2} by using the extensible records concept. The result of the extension is that the \emph{record1} and \emph{record3} types are equal (they have exactly the same fields), although they have used different methods to achieve this.
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: example of the extensible records mechanism.}]
+% record1 does not inherit any fields, it defines them all itself.
+record1: TYPE = [# a: type_a, b: type_b #]
+
+% Have record3 inherit all fields from record2, this results in record3 having exactly
+% the same fields as record1.
+record2: TYPE = [# a: type_a #]
+record3: TYPE = record2 WITH [# b: type_b #]
+\end{lstlisting}
+
+\subsection{Example proof}
+
+\input{thesis_proof_example}

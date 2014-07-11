@@ -1,0 +1,116 @@
+\hypertarget{c++_sender}{\chapter{C++: sender.cpp}}
+\lstset{language=C++}
+\begin{lstlisting}
+//----------------------------------------------------------------------------
+// LEGEND:
+//   //% : comments added by us.
+//   //# : a line that has not been modelled.
+//   //! : a line that has been added by us.
+//----------------------------------------------------------------------------
+
+/** Sender in a queue of senders?.  
+    @return true if sender has enqueued in a receiver's list of waiting 
+            senders
+ */
+PUBLIC inline 
+bool 
+Sender::in_sender_list()
+{
+  //% We have created a simplified version of the sender list in our model,
+  //% therefore the actual implementation below is not directly but 
+  //% indirectly reflected in our model.
+  return sender_next;
+}
+
+PROTECTED
+//PROTECTED inline NEEDS [<cassert>, "cpu_lock.h", "lock_guard.h",
+//                      Sender::replace_node, Sender::tree_insert]
+void Sender::sender_enqueue(Sender **head, unsigned short prio)
+{
+  //% We have created a simplified version of the sender list in our model,
+  //% therefore the actual implementation below is not directly but 
+  //% indirectly reflected in our model.
+
+  assert(prio <256);                                                       //#
+
+  _sender_prio = prio;                                                     //#
+
+  Lock_guard<Cpu_lock> guard (&cpu_lock);                                  //#
+
+  if (in_sender_list())                                                    //#
+    return;                                                                //#
+
+  _sender_l = _sender_r = 0;                                               //#
+  _sender_parent = 0;                                                      //#
+  sender_next = sender_prev = this;                                        //#
+
+  Sender *p = *head;                                                       //#
+
+  if(!p)                                                                   //#
+    {
+      *head = this;                                                        //#
+      return;                                                              //#
+    }
+
+  Sender *x = this;                                                        //#
+
+  // bigger prio, replace top element
+  // we dont handle the case same max prio here!
+  if(_sender_prio > p->_sender_prio)                                       //#
+    {
+      replace_node(p);                                                     //#
+      x = p; // ok, insert the old top element too                         //#
+      *head = this;                                                        //#
+    }
+
+  x->tree_insert(*head);                                                   //#
+}
+
+PUBLIC
+//PUBLIC inline NEEDS [<cassert>, "cpu_lock.h", "lock_guard.h",
+//                   Sender::remove_tree_elem, Sender::remove_head]
+void Sender::sender_dequeue(Sender **head)
+{
+  //% We have created a simplified version of the sender list in our model,
+  //% therefore the actual implementation below is not directly but 
+  //% indirectly reflected in our model.
+
+  if (!in_sender_list())                                                   //#
+    return;                                                                //#
+
+  Lock_guard<Cpu_lock> guard (&cpu_lock);                                  //#
+
+  // we are removing top (the sender element with the highest prio
+  // so we need to calculate an new top element
+
+  if(this == *head)                                                        //#
+    *head = remove_head();                                                 //#
+  else                                                                     //#
+    remove_tree_elem();                                                    //#
+  // mark as dequeued
+  sender_next = 0;                                                         //#
+}
+
+// An special version, only to remove the head
+// this is neccessary if the receiver removes the old know head
+// after an unsuccessful ipc_receiver_ready.
+PUBLIC
+void Sender::sender_dequeue_head(Sender **head)
+{
+  //% Our 
+
+  if (!in_sender_list())                                                   //#
+    return;                                                                //#
+
+  Lock_guard<Cpu_lock> guard (&cpu_lock);                                  //#
+
+  // we are removing top (the sender element with the highest prio
+  // so we need to calculate an new top element
+
+  if(this == *head)                                                        //#
+    *head = remove_head();                                                 //#
+
+  // mark as dequeued
+  sender_next = 0;                                                         //#
+}
+\end{lstlisting}

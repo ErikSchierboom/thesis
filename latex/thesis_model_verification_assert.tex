@@ -1,0 +1,298 @@
+\subsection{Property 3: validation of assertions in the code}
+
+\subsubsection{Definition}
+As in many C++ programs, Fiasco (and its IPC path) contains many calls to the \emph{assert()} function. When a call is made to the \emph{assert()} function, one wants to test if a critical condition holds at that moment; the condition is an expression evaluating to a boolean value. If the expression evaluates to true, execution is continued as if nothing happened. However, if the expression evaluates to false, execution of the program is aborted completely. A call to assert should thus only be made when one wants to test a critical condition. For the correct functioning of the program, all assertions should evaluate to true.\emptyline
+
+Ensuring that not a single assertion fails is precisely the property we attempted to verify. As assertions should only evaluate critical conditions, our model should be able to prove these. If, however, our model fails to do so, we have either found a bug in the code or in our model. Being able to verify all assertions thus would also increase the confidence we have in the correctness of our model.
+
+\subsubsection{Model details}
+As the assertions are spread over many functions, we needed to modify the system state. For this purpose, we added the \emph{assertions\_held} field to the system state:
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: basic system state, with added \emph{assertions\_held} field.}]
+System_state: TYPE = 
+          [# 
+            this:    This_thread_pointer, % Pointer to active thread.
+            threads: Thread_list,         % List of all threads.
+            error:   Ipc_err,             % Indicates if error occurred.
+            timeout: L4_timeout,          % Indicates if timeout occurred.
+            seed:    nat,                 % Seed used for randomness.
+            handshake_attempted: bool,    % Indicates if handshake attempted.
+            assertions_held:     bool     % Indicates if assertions held.
+          #]
+\end{lstlisting}
+
+The semantics of this field are that it signifies if all assertions have held, the failure of a single assertion will result in \emph{assertions\_held} being unset for the remainder of IPC. To achieve this, the status of the \emph{assertions\_held} field is always updated by combining the assertions with the previous status of the \emph{assertions\_held} field using the \emph{and} operator. By assuring that \emph{assertions\_held} is initially set to true (as no assertions can possibly have failed at that time), the \emph{assertions\_held} field will only be true after handling IPC if all assertions held.\emptyline
+
+Consider the following, simple assertion, which is made at the beginning of the receive part:
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={C++: \emph{have\_receive} assertion.}]
+assert(have_receive);
+\end{lstlisting}
+
+Translated to our model, this statement results in the following definition:
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: \emph{have\_receive} assertion.}]
+% Assert that at this point the <have_receive> parameter is true.
+state_old WITH [(assertions_held) := 
+                 state_old`assertions_held AND
+                 have_receive]
+\end{lstlisting}
+
+We should note though that not all assertions have been integrated into our model, most notably we have excluded assertions in the \emph{ipc\_receiver\_ready()} function and in the receive part. The first omissions were due to us not modeling the \emph{receiver} field and the second were due to the abstractions applied to the receive part (one assertion in the receive part remained though, namely the one listed above).
+
+\subsubsection{Verification and problems}
+The lemma corresponding to our property is defined as follows::
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: property 3, formal definition.}]
+% The various assertions in the code should hold after engaging in IPC.
+assertions_held: LEMMA
+  FORALL (have_send: bool, partner: Thread_pointer, have_receive: bool,
+          sender: Thread_pointer,state_old: System_state):
+    % Engage in IPC with the supplied parameters.
+    LET state_new = sys_ipc(have_send,partner,
+                            have_receive,sender,state_old) IN
+      NOT state_old`threads(state_old`this)`state`thread_polling IMPLIES
+        state_new`assertions_held
+\end{lstlisting}
+
+Contrary to the previous two properties, this lemma does not require that the \emph{error} field is initially not set. This is due to the fact that this lemma uses the \emph{sys\_ipc()} function, which already initializes the \emph{error} field to false. However, we \textit{do} make another assumption, namely that initially the \emph{thread\_polling} bit is not set. The reason why we added this assumption will now be expanded upon.
+
+\subsubsection{Problem 1: \emph{thread\_polling} bit unset}
+Our first problem occured when we tried to verify the lemma above \textit{without} the \emph{thread\_polling} assumption. The problem popped up when we tried to verify the following assertion in the \emph{do\_ipc\_send\_part()} function:
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: \emph{thread\_polling} assertion.}]
+% Start with a handshake and immediately return if an error occured.
+LET state_temp = try_handshake_receiver(partner,state_old) IN
+IF state_temp`error THEN
+  state_temp   
+ELSE 
+LET 
+  % Assert that after a successful handshake the sender thread is no 
+  % longer polling.
+  state_temp = state_temp WITH [(assertions_held) := 
+                 state_temp`assertions_held AND 
+             NOT state_temp`threads(state_temp`this)`state`thread_polling],
+  [...]
+IN
+  [...]
+ENDIF
+\end{lstlisting}
+
+More verbosely, the above assertion tries to verify that after a successful handshake, the \emph{thread\_polling} bit of the \emph{this} thread, which is the sender, is not set. The semantics of the \emph{thread\_polling} bit are that it is only set (on the sender) when the sender has to wait for the receiver to become ready; essentially the sender \textit{polls} the receiver (hence the bit's name) at intervals to see if it has become ready. Once the receiver has become ready (the handshake has been successful), the \emph{thread\_polling} bit should be unset as the sender is no longer waiting. To verify this assertion, we created the following lemma:
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: \emph{try\_handshake\_receiver\_no\_error\_not\_polling} lemma.}]
+% If no error has occured when calling try_handshake_receiver(), the
+% <thread_polling> of the <this> thread will always be unset.
+try_handshake_receiver_no_error_not_polling: LEMMA
+  FORALL (partner: Thread_pointer,state_old: System_state):
+    LET state_new = try_handshake_receiver(partner,state_old) IN
+      NOT state_old`error AND 
+      NOT state_new`error IMPLIES
+        NOT state_new`threads(state_new`this)`state`thread_polling
+\end{lstlisting}
+
+If we were able to verify this lemma, we would have verified the \emph{thread\_polling} assertion. However, when trying to verify this lemma, we found that one specific path in the \emph{try\_handshake\_receiver()} function rendered the lemma unprovable. We will list the lines involved in this path (where less relevant parts have been replaced by [...] for brevity purposes):
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: \emph{try\_handshake\_receiver()} problematic lines.}]
+% Try to have the sender and receiver agree upon engaging in IPC.
+try_handshake_receiver(partner: Thread_pointer, 
+                       state_old: System_state): System_state =
+  % Immediately return with an error if the partner is the Zero- or Nil thread
+  % or the partner is an invalid thread.
+  IF partner = Zero_thread OR [...] THEN
+    state_old WITH [error := true]
+  ELSE
+  LET 
+    [...]
+  IN   
+    % IPC has not been cancelled, now check if the receiver is ready for
+    % the sender. If not, wait for the receiver to become ready.
+    IF NOT sender_ok(state_temp`this,partner,state_temp) THEN
+    LET
+      state_temp = do_send_wait(partner,state_temp)
+    IN
+      [...]
+    ELSE
+      state_temp WITH [error := false]
+    ENDIF
+  ENDIF
+\end{lstlisting}
+
+The problematic path arises when the partner is valid and the \emph{sender\_ok()} function returns true, which results in a return from the function with the \emph{error} field set to false. As, in our model, the functions before the call to \emph{sender\_ok()} do not modify the \emph{thread\_polling} bit, the assertion only succeeds if the \emph{thread\_polling} bit is not set before \emph{try\_handshake\_receiver()} is called.\emptyline
+
+Unfortunately, this assumption cannot be found anywhere in the source code. To test this assumption, we modified the Fiasco source code and added our assumption as an assertion:
+
+\lstset{language=C++}
+\begin{lstlisting}[caption={C++: \emph{thread\_polling} bit, added assertion.}]
+assert(!(state() & Thread_polling));                                     //!
+
+if (EXPECT_TRUE(have_send_part || have_receive_part))      
+  ret = do_ipc(have_send_part, partner,
+         have_receive_part, sender,
+         t, regs);
+\end{lstlisting}
+
+As can be seen, we assert that the \emph{thread\_polling} bit is not set before \emph{do\_ipc()} is called. After recompiling Fiasco (including our added assertion), we ran an IPC test application to check if the assertion failed. To make sure the system reached the assertion at all, we first tested a version where our assertion was preceded by an assertion guaranteed to fail\footnote{We used the simplest solution possible: assert(false);}. After we verified that our assertion was indeed evaluated, we ran the test application again (with the obviously failing assertion removed of course) to see if the assertion would fail, which it did not. We now had some confidence that our assumption was correct, however the quotation at the beginning of the chapter by Lenstra can be applied to this situation: our assertion test can only prove its incorrectness, not its correctness. This is due to the fact that the IPC tester might not examine all possible states, a state might be missed in which the assertion would fail.\emptyline
+
+As an alternative way to increase confidence that our assumption holds, we tried to verify that the \emph{thread\_polling} bit being unset is an invariant of the Fiasco IPC path. Here we also have to assume that the \emph{thread\_polling} is not set initially, as otherwise we would have the exact same problem as before. The invariant corresponds to the following lemma:
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: unset \emph{thread\_polling()} bit invariant.}]
+% If we assume that initially, the <this> thread's <thread_polling> bit is
+% not set, it will still be unset after calling sys_ipc().
+sys_ipc_not_polling: LEMMA
+  FORALL (have_send: bool, partner: Thread_pointer, have_receive: bool,
+          sender: Thread_pointer, state_old: System_state):
+    % Engage in IPC with the supplied parameters.
+    LET state_new = sys_ipc(have_send,partner,
+                            have_receive,sender,state_old) IN        
+      NOT state_old`threads(state_old`this)`state`thread_polling IMPLIES
+        NOT state_new`threads(state_new`this)`state`thread_polling
+\end{lstlisting}
+
+Unfortunately, we failed to prove both this lemma and the lemma mentioned earlier which was required for proving our property. Both lemmas depended on the \emph{thread\_polling} bit always being unset after calling \emph{do\_send\_wait()}. The semantics of this function are that the sender waits for the receiver to become ready and only returns when the sender is ready or an error occured. In both cases, the \emph{thread\_polling} bit should have been unset as the sender is no longer waiting. Therefore, we had to prove the following lemma to finish the proofs of both lemmas:
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: unset \emph{thread\_polling()} bit invariant.}]
+% After calling do_send_wait(), the <this> thread's <thread_polling> bit will
+% always be unset.
+do_send_wait_not_polling: LEMMA
+  FORALL (partner: Thread_pointer,state_old: System_state):
+    LET state_new = do_send_wait(partner,state_old) IN
+      NOT state_new`threads(state_new`this)`state`thread_polling
+\end{lstlisting}
+
+At the start of this function, the \emph{thread\_polling} bit is set to indicate that the sender is waiting for the receiver to become ready. When we tried to prove this lemma, we found a path in which the \emph{thread\_polling} bit was not unset at the return of the function.
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: \emph{do\_send\_wait()} function, problematic \emph{thread\_polling} path.}]
+% Create a thread state which bits to add to the <this> thread.
+LET
+  [...]
+  add_bits = TS_empty WITH [thread_polling := true,
+                            thread_send_in_progress := true,
+                            thread_ipc_in_progress := true],
+  state_temp = state_add_dirty(state_temp`this,add_bits,state_temp),    
+  [...]
+IN
+  [...]
+	  % Return if the receiver is ready to receive a message from the <this>
+	  % thread. If not enter the waiting loop.
+	  IF sender_ok(state_temp`this,partner,state_temp) THEN
+	    state_temp WITH [error := false]
+	  ELSE
+	    % Enter the waiting loop.
+	    [...]
+	  ENDIF
+  [...]
+\end{lstlisting}
+
+The erroneous situation occured, once again, when the \emph{sender\_ok()} function is called. All functions after \emph{state\_add\_dirty()} and before \emph{sender\_ok()} do not modify the \emph{thread\_polling} bit. When \emph{sender\_ok()} returns true, the \emph{do\_send\_wait()} function immediately returns and execution is continued in the \emph{do\_ipc\_send\_part()} function. As at this point the \emph{thread\_polling} bit will be set to true (due to the \emph{state\_add\_dirty()} function call), the \emph{thread\_polling} assertion will fail. This time, there was no additional assumption which would solve our problem. Our only option was to define an axiom:
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: the axiom used in the \emph{do\_send\_wait()} function.}]
+% The <thread_polling> bit is not set when sender_ok() returns true.
+sender_ok_not_polling: AXIOM
+  FORALL (partner: Thread_pointer, state_old: System_state):
+    sender_ok(state_old`this, partner, state_old) IMPLIES
+      NOT state_old`threads(state_old`this)`state`thread_polling
+\end{lstlisting}
+
+With this axiom, our problem was solved, however it indicated that either our model was incorrect or the source code. After careful consideration of our model, we contacted the author of the Fiasco IPC path, who confirmed that we had indeed found a bug in the source code. This bug could be fixed by unsetting the \emph{thread\_polling} bit after the \emph{sender\_ok()} function has returned true and before returning from the function. In our model, we resolved this problem by using our axiom, we could also have fixed the bug in our model but chose not to in order to keep the model consistent with the code. 
+
+\subsubsection{Problem 2: sender not equal to receiver}
+At certain points in our proofs, we needed the assurance that certain bits remained unchanged after calling a specific function. For most functions this posed no problem, with the exception of the \emph{preemption\_point()} function. This function relied on the \emph{preemption\_point\_actions()} function, which updates the system state according to, randomly generated, preemption actions. As the \emph{receiver\_ready} preemption action was quite complex, for each \emph{preemption\_point\_actions()} lemma we created a corresponding lemma focusing only on that action, of which an example is shown below:
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: \emph{preemption\_actions()}- and related \emph{receiver\_ready()} lemma.}]
+% The <thread_ipc_in_progress> bit of the <this> thread will not be changed 
+% after receiver_ready() was called.
+receiver_ready_ipc_in_progress_unchanged: LEMMA
+ FORALL(sender:Thread_pointer,receiver:Thread_pointer,state_old:System_state):
+   LET state_new = receiver_ready(state_old`this,receiver,state_old) IN
+       state_old`threads(state_old`this)`state`thread_ipc_in_progress =
+         state_new`threads(state_new`this)`state`thread_ipc_in_progress
+
+% When no timeouts are allowed, the <thread_ipc_in_progress> bit of the
+% <this> thread will not be changed after calling preemption_point_actions().
+preemption_point_actions_no_timeout_ipc_in_progress_unchanged: LEMMA
+  FORALL (actions: Preemption_actions, partner: Thread_pointer, 
+          state_old: System_state):
+    LET state_new = preemption_point_actions(actions,partner,false,state_old) IN
+      state_old`threads(state_old`this)`state`thread_ipc_in_progress =
+        state_new`threads(state_new`this)`state`thread_ipc_in_progress
+\end{lstlisting}
+
+Verifying the \emph{preemption\_point\_actions()} lemma was very straightforward, as most preemption actions did not involve the \emph{thread\_ipc\_in\_progress} bit. However, verifying the corresponding \emph{receiver\_ready()} lemma proved troublesome. The problem occured when the sender was equal to the receiver and the receiver was to have its state initialized; this initialization modified the state in a way that prevented us from proving the lemma.\emptyline
+
+In essence, the problem originates in a situation that cannot occur in Fiasco, namely when a sender wants to send a message to itself. This would result in the sender having to wait forever for the receiver (itself) to become ready (at least with our modeling of timeouts). Although this exception is not handled in the Fiasco source code, we modified the model to reflect that a receiver cannot become ready for a sender when both are equal. We felt this was the right decision as it might not reflect the actual source code, but it did reflect its behaviour. The \emph{preemption\_point\_actions()} function and the \emph{receiver\_ready\_ipc\_in\_progress\_unchanged} lemma were thus modified and the proof could be completed.
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: \emph{receiver\_ready()}- and dependent \emph{preemption\_actions()} lemma.}]
+% Execute a list of preemption point actions.
+preemption_point_actions(actions: Preemption_actions, partner: Thread_pointer,
+                         allow_timeout: bool, 
+                         state_old: System_state): RECURSIVE System_state =
+  CASES actions OF
+    [...]
+    % A receiver can only become ready when it is not equal to the sender,
+    % if so it would be waiting forever.
+    ELSIF action = Receiver_ready AND NOT state_old`this = partner THEN
+      receiver_ready(state_old`this,partner,state_old)    
+    [...]    
+  ENDCASES
+  MEASURE length(actions)
+
+% The <thread_ipc_in_progress> bit of the <this> thread will not be changed 
+% after receiver_ready() was called and the sender (the <this> thread) was 
+% not equal to the receiver.
+receiver_ready_ipc_in_progress_unchanged: LEMMA
+ FORALL(sender:Thread_pointer,receiver:Thread_pointer,state_old:System_state):
+   LET state_new = receiver_ready(state_old`this,receiver,state_old) IN
+     NOT state_old`this = receiver IMPLIES
+       state_old`threads(state_old`this)`state`thread_ipc_in_progress =
+         state_new`threads(state_new`this)`state`thread_ipc_in_progress
+\end{lstlisting}
+
+\subsubsection{Problem 3: not engaged in IPC assertion}
+In the \emph{do\_send\_wait\_loop()} function, an assertion is made that the \emph{in\_ipc()} function should evaluate to false when the \emph{thread\_cancel} and \emph{thread\_transfer\_in\_progress} bits are not set. To put it another way: only when the sender and receiver are engaged in IPC will the \emph{thread\_transfer\_in\_progress} bit be set. Unfortunately, we were unable to prove this assertion, which we expect is due to our simplified preemption point definition and lack of scheduling, as they result in the receiver state being less accurately modelled (which is precisely what is needed in the \emph{in\_ipc()} function). For our proof we thus had to resort to the following axiom:
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: the axiom used in the \emph{do\_send\_wait\_loop()} function.}]
+% When the <thread_transfer_in_progress> bit of the <this> thread is not set,
+% that implies that the partner and the <this> thread are not engaged in IPC.  
+not_transfer_in_progress_not_in_ipc: AXIOM   
+  FORALL (partner:Thread_pointer,state_old:System_state):
+    NOT state_old`threads(state_old`this)`state`thread_transfer_in_progress
+    IMPLIES 
+      NOT in_ipc(state_old`this,partner,state_old)
+\end{lstlisting}
+
+\subsubsection{Example proof}
+To conclude our discussion of our verification attempts, we will list an example of a typical proof of our model. We will look at the \emph{assertions\_held} lemma, which was the lemma corresponding to the property which verification attempt we just discussed. The proof will also show the modular structure of our proofs; one might expect the proof to be very large, but due to the use of the following sublemma it is actually very small (and therefore suitable for demonstration purposes).
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: property 3, sublemma for the  \emph{do\_ipc\_send\_part()} function.}]
+% The various assertions in the code should hold after handling the send part
+% when initially no error or timeout occurred.
+do_ipc_send_part_assertions_held: LEMMA
+  FORALL (partner: Thread_pointer,have_receive: bool,state_old: System_state):
+    LET state_new = do_ipc_send_part(partner,have_receive,state_old) IN
+      NOT state_old`error AND 
+      NOT state_old`timeout AND
+      NOT state_old`threads(state_old`this)`state`thread_polling AND
+      state_old`assertions_held
+      IMPLIES
+        state_new`assertions_held
+\end{lstlisting}
+
+We are now ready to proceed with the proof itself.\emptyline
+
+\input{thesis_proof_assertions_held}

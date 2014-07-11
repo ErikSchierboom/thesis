@@ -1,0 +1,158 @@
+\hypertarget{pvs_fiasco_assert}{\chapter{PVS: fiasco\_assert.pvs}}
+\lstset{language=PVS}
+\begin{lstlisting}
+% ------------------------------------------------------------------------------
+% This theory focuses on the verification of the assert() calls that are made in
+% the Fiasco IPC source code. It is important that our model can verify that
+% these assertions hold, as a failure of a single assertion will cause Fiasco to
+% abort execution completely.
+% ------------------------------------------------------------------------------
+fiasco_assert: THEORY
+BEGIN
+  % ----------------------------------------------------------------------------
+  % Import the theories which will be used in our lemmas.
+  % ----------------------------------------------------------------------------
+  IMPORTING fiasco_functions
+  IMPORTING fiasco_lock
+  IMPORTING fiasco_state
+  IMPORTING fiasco_helpers
+  
+  % ----------------------------------------------------------------------------
+  % Legend:
+  %   LEMMA %- : the lemma depends on an assumption.
+  %   LEMMA %/ : the lemma depends on an axiom.
+  % ----------------------------------------------------------------------------
+
+  % ----------------------------------------------------------------------------
+  % Declaration of lemmas related to the system state's <assertions_held> field.
+  % ----------------------------------------------------------------------------
+ 
+  % The assertions hold after sender_dequeue() is called.
+  sender_dequeue_assertions_held: LEMMA
+    FORALL (receiver:Thread_pointer,state_old: System_state):
+      LET state_new = sender_dequeue(receiver,state_old) IN
+        state_old`assertions_held IMPLIES state_new`assertions_held 
+   
+  % The assertions hold after sender_enqueue() is called.
+  sender_enqueue_assertions_held: LEMMA
+    FORALL (receiver:Thread_pointer,state_old: System_state):
+      LET state_new = sender_enqueue(receiver,state_old) IN
+        state_old`assertions_held IMPLIES state_new`assertions_held 
+
+  % The assertions hold after timeout() is called.
+  timeout_assertions_held: LEMMA
+    FORALL (state_old: System_state):
+      LET state_new = timeout(state_old`this,state_old) IN
+        state_old`assertions_held IMPLIES state_new`assertions_held
+
+  % The assertions hold after kill() is called.
+  kill_assertions_held: LEMMA
+    FORALL (partner: Thread_pointer, state_old: System_state):
+      LET state_new = kill(partner,state_old) IN
+        state_old`assertions_held IMPLIES state_new`assertions_held
+
+  % The assertions hold after receiver_ready() is called.
+  receiver_ready_assertions_held: LEMMA
+   FORALL(sender:Thread_pointer,receiver:Thread_pointer,state_old:System_state):
+     LET state_new = receiver_ready(state_old`this,receiver,state_old) IN
+       state_old`assertions_held IMPLIES state_new`assertions_held
+
+  % The assertions hold after preemption_point_actions() is called.
+  preemption_point_actions_assertions_held: LEMMA
+    FORALL (actions: Preemption_actions, partner: Thread_pointer,
+            allow_timeout: bool, state_old: System_state):
+      LET state_new = preemption_point_actions(actions,partner,
+                                               allow_timeout,state_old) IN
+        state_old`assertions_held IMPLIES state_new`assertions_held 
+
+  % The assertions hold after preemption_point() is called.
+  preemption_point_assertions_held: LEMMA
+    FORALL (partner:Thread_pointer,allow_timeout:bool,state_old: System_state):
+      LET state_new = preemption_point(partner,allow_timeout,state_old) IN
+        state_old`assertions_held IMPLIES state_new`assertions_held 
+
+  % The assertions hold after abort_send() is called.
+  abort_send_assertions_held: LEMMA
+    FORALL (partner: Thread_pointer, state_old: System_state):
+      LET state_new = abort_send(partner,state_old) IN
+        state_old`assertions_held IMPLIES state_new`assertions_held 
+
+  % The assertions hold after do_send_wait_finish() is called and initially
+  % either a timeout occurred or the <thread_ipc_in_progress> bit of the
+  % <this> thread is set.
+  do_send_wait_finish_assertions_held: LEMMA
+    FORALL (partner: Thread_pointer, state_old: System_state):
+      LET state_new = do_send_wait_finish(partner,state_old) IN
+        state_old`assertions_held AND         
+       (state_old`timeout OR 
+        state_old`threads(state_old`this)`state`thread_ipc_in_progress) IMPLIES
+          state_new`assertions_held 
+
+  % The assertions hold after do_send_wait_loop() is called and initially
+  % no timeout occurred and the <thread_ipc_in_progress> bit of the 
+  % <this> thread is set.
+  %
+  % NOTE: depends on the [not_transfer_in_progress_not_in_ipc] axiom.
+  do_send_wait_loop_assertions_held: LEMMA %/
+    FORALL (partner: Thread_pointer, state_old: System_state):
+      LET state_new = do_send_wait_loop(partner,state_old) IN
+        state_old`assertions_held AND 
+        NOT state_old`timeout AND        
+        state_old`threads(state_old`this)`state`thread_ipc_in_progress IMPLIES
+          state_new`assertions_held 
+
+  % The assertions hold after do_send_wait() is called when initially 
+  % no timeout occured and the partner thread is not locked or locked
+  % by the <this> thread.
+  do_send_wait_assertions_held: LEMMA
+    FORALL (partner: Thread_pointer, state_old: System_state):
+      LET state_new = do_send_wait(partner,state_old) IN
+        NOT state_old`timeout AND
+        state_old`assertions_held  AND        
+        (state_old`threads(partner)`thread_lock = Zero_thread OR
+         state_old`threads(partner)`thread_lock = state_old`this) 
+        IMPLIES 
+          state_new`assertions_held 
+
+  % The various assertions in the code hold after calling 
+  % try_handshake_receiver() when initially no error or timeout occured.
+  try_handshake_receiver_assertions_held: LEMMA
+    FORALL (partner: Thread_pointer, state_old: System_state):
+      % Engage in IPC with the supplied parameters.
+      LET state_new = try_handshake_receiver(partner,state_old) IN
+        NOT state_old`timeout AND 
+        NOT state_old`error AND   
+        state_old`assertions_held
+        IMPLIES
+          state_new`assertions_held
+
+  % The various assertions in the code should hold after handling the send part
+  % when initially no error or timeout occurred.
+  %
+  % NOTE: depends on the additional assumption that initially the 
+  % <thread_polling> bit of the <this> thread is not set.
+  do_ipc_send_part_assertions_held: LEMMA %-
+    FORALL (partner: Thread_pointer,have_receive: bool,state_old: System_state):
+      LET state_new = do_ipc_send_part(partner,have_receive,state_old) IN
+        NOT state_old`error AND 
+        NOT state_old`timeout AND
+        NOT state_old`threads(state_old`this)`state`thread_polling AND
+        state_old`assertions_held
+        IMPLIES
+          state_new`assertions_held
+    
+  % The various assertions in the code should hold after engaging in IPC.
+  %
+  % NOTE: depends on the additional assumption that initially the 
+  % <thread_polling> bit of the <this> thread is not set.
+  assertions_held: LEMMA %-
+    FORALL (have_send: bool, partner: Thread_pointer, have_receive: bool,
+            sender: Thread_pointer,state_old: System_state):
+      % Engage in IPC with the supplied parameters.
+      LET state_new = sys_ipc(have_send,partner,
+                              have_receive,sender,state_old) IN
+        NOT state_old`threads(state_old`this)`state`thread_polling IMPLIES
+          state_new`assertions_held
+
+END fiasco_assert
+\end{lstlisting}

@@ -1,0 +1,32 @@
+\hypertarget{introduction}{\chapter{Introduction}}
+
+\begin{epigraphs}
+\qitem{``To err is human - and to blame it on a computer is even more so.''}{Robert Orben}
+\qitem{``I do not fear computers. I fear the lack of them.''}{Isaac Asimov}
+\end{epigraphs}
+
+Writing computer programs has changed a lot in the last decennia. The programs written for the first computers had to keep in mind that its resources (such as processing power and memory) were very limited and thus efficiency was a key design goal. As computers advanced, its resources became more abundant so efficiency became less an issue. Instead, as reliance on computers increased, building a more dependable system became a key design goal. The concept of dependability is defined by the IFIP\footnote{The International Federation For Information Processing.} \cite{ifipdepen05} as follows:
+
+\begin{quote}``The notion of dependability, defined as the trustworthiness of a computing system which allows reliance to be justifiably placed on the service it delivers, enables these various concerns to be subsumed within a single conceptual framework. Dependability thus includes as special cases such attributes as reliability, availability, safety, security.''
+\end{quote}
+
+To create a dependable computer system it makes sense to start looking at the foundations of the software running on a computer, namely the kernel. Critical functions such as memory allocation, scheduling, process management\footnote{Such as the creation and stopping of processes. A process is sometimes also referred to as a task.} and inter-process communication (IPC) are all handled by the kernel. Errors in the kernel decrease its dependability and without a dependable kernel we cannot reasonably expect the whole system to be dependable\footnote{Remember that each task relies on the kernel for its core functionality.}. One of the main issues in creating a dependable system is thus: how to create a dependable kernel?\emptyline
+
+One approach to create a dependable kernel is to make it a microkernel. The main design motivation when designing a microkernel is summarized by Jochen Liedtke in \cite{liedtke95kernel}:
+
+\begin{quote}
+``[...] a concept is tolerated inside the microkernel only if moving it outside the kernel [...] would prevent the implementation of the system's required functionality.''
+\end{quote}
+
+A microkernel is thus a specific type of kernel in which anything that does not necessarily belong in the kernel is moved outside the kernel. This results in a smaller and more robust system. A monolithic kernel however includes, often many, concepts that do not necessarily belong in the kernel. A typical concept that a monolithic kernel includes but a microkernel does not is the file server (or file system). The main benefit of including a concept in the kernel is improved performance, as switching between user- and kernel-mode is quite expensive \cite{hartig97performance}. Its main disadvantage is that a crash of the concept often brings down the entire kernel (and thus the entire system). When a concept resides in user space, a crash of that concept has a significantly smaller chance of bringing down the entire system as it cannot directly access the kernel space (in which the kernel resides).\emptyline
+
+Although a microkernel is more compact than a monolithic kernel, errors are still likely to exist. Each error in the kernel negatively influences its dependability, the question is therefore: how to minimize the number of errors in the kernel? One approach is to formally verify the kernel. Formally verifying software is very similar to creating a mathematical proof\footnote{Computerized mechanical proofs are often regarded upon with high scepticism by mathematicians though.}. Just as a mathematical proof lets you say things with absolute certainty about the proven statement, formal software verification lets you say things with absolute certainty about the verified software. Being able to guarantee that certain properties hold when executing software is incredibly helpful in developing a dependable system; one could for example verify that the system will never be in a certain, erroneous state.\emptyline
+
+This thesis will report on our attempt to formally verify a part of the Fiasco microkernel, which is based on Jochen Liedtke's L4 microkernel specification \cite{liedtke96reference} and has been developed by the Technische Universit{\"a}t Dresden. We will try to formally verify certain aspects of inter-process communication in Fiasco. Our research question is as follows:
+\begin{quote}
+\textsl{What properties of inter-process communication on the Fiasco microkernel can be proven?}
+\end{quote}
+
+The verification will be done by creating a model of inter-process communication in Fiasco and then verify properties of that model. The verification system PVS\footnote{Prototype Verification System.} will be used to verify and create the model. We have chosen specifically for Fiasco because it is the subject of a larger verification project, called VFiasco \cite{hohmuth03applying}, in which our research can easily be integrated. PVS has been chosen mainly because it has thus far been the verification system of choice in the VFiasco project.\emptyline
+
+After this short introduction into the problem area, we continue at \hyperlink{backgrounds}{chapter two} with the thesis' backgrounds. \hyperlink{model_creation}{Chapter three} discusses how the PVS model was created. The verification of several properties of the model is detailed in \hyperlink{model_verification}{chapter four}. A discussion of the obtained results is presented in \hyperlink{discussion}{chapter five} and in the \hyperlink{conclusions}{sixth and final chapter} conclusions and suggestions for future work are presented.

@@ -1,0 +1,43 @@
+\hypertarget{pvs_fiasco_wakeup}{\chapter{PVS: fiasco\_wakeup.pvs}}
+\lstset{language=PVS}
+\begin{lstlisting}
+% ------------------------------------------------------------------------------
+% In Fiasco IPC it is possible to have a combined send- and receive call, which
+% means that after a sender has sent its message to the receiver. It then waits
+% for that receiver to send a message back to him. After the sender has sent
+% its message, it thus enters a receiving state. Simultaneously the receiver 
+% enters a sending state. Now the sender has to wait for the receiver to
+% send its message. It is therefore important that the receiver is ready to be
+% scheduled, otherwise the sender might be waiting forever for the receiver to 
+% send a message back. The receiver being ready to be scheduled is controlled
+% by a single bit, namely the <thread_ready> bit that thus has to be set when
+% the receiver switches to the sending status.
+% ------------------------------------------------------------------------------
+fiasco_wakeup: THEORY
+BEGIN
+  % ----------------------------------------------------------------------------
+  % Import the theories which will be used in our lemmas.
+  % ----------------------------------------------------------------------------
+  IMPORTING fiasco_functions
+  
+  % ----------------------------------------------------------------------------
+  % Legend:
+  %   LEMMA %- : the lemma depends on an assumption.
+  %   LEMMA %/ : the lemma depends on an axiom.
+  % ----------------------------------------------------------------------------
+
+  % ----------------------------------------------------------------------------
+  % Lemmas involving the <thread_ready> bit of the partner thread.
+  % ----------------------------------------------------------------------------
+
+  % When the sender- and receiver are still engaged in IPC after the send part
+  % has finished, the receiver should be in a state ready to be scheduled which
+  % means that the <thread_ready> bit of the receiver should be set.
+  do_ipc_send_part_in_ipc_receiver_awoken: LEMMA
+    FORALL (partner: Thread_pointer,have_receive: bool,state_old: System_state):
+      LET state_new = do_ipc_send_part(partner,have_receive,state_old) IN
+        NOT state_new`error AND in_ipc(state_new`this,partner,state_new) IMPLIES
+          state_new`threads(partner)`state`thread_ready  
+
+END fiasco_wakeup
+\end{lstlisting}

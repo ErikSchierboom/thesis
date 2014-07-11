@@ -1,0 +1,61 @@
+\section{L4 microkernel}
+
+\subsection{Introduction}
+A performance analysis of first generation microkernels, such as Mach, revealed that they failed to deliver a high performance microkernel \cite{hartig97performance}. Jochen Liedtke realized that one of the key reasons why Mach did not perform very well, was its complex IPC implementation. He then set himself to creating a microkernel specification that \textit{would} offer high performance; this resulted in the L3 microkernel specification \cite{metterhausen96l3}. The L3 specification had a small and efficient IPC specification, which indeed offered massive performance gains when compared to earlier microkernels such as Mach. However, Liedtke noted that the specification still contained concepts that could (and should) be moved out of the microkernel. The removal of these concepts resulted in the L4 specification. By definition the L4 microkernel specification is thus a second generation microkernel\footnote{As mentioned, a second generation microkernel is designed with both minimalism and performance in mind.}.\emptyline
+
+The original L4 microkernel specification is the L4.V2 specification \cite{liedtke96reference}. When the L4 specification is referred to, one usually refers to the L4.V2 specification. However, the L4.V2 specification had some problems associated with it. One of the biggest problems was with the thread ids. The thread ids as specified in L4.V2 were found to be rather inflexible and unwieldy. Another problem was that the \emph{clans and chiefs} concept\footnote{The clans and chiefs concept was designed to enable the implementation of arbitrary security policies.} was too inefficient for most purposes. These problems (and more) were addressed in the L4.X0 specification \cite{liedtke99reference}. The main goal of this specification was not to solve all problems of the L4.V2 specification, but to use it as an experimental test-case. The aim of the L4.X2 release \cite{liedtke04reference} though \textsl{was} to solve the problems in the L4.V2 specification. Some of the more notable differences between the L4.V2- and L4.X2 specifications are: the separation of task- and thread management, support for multiprocessing and a clear separation between API\footnote{Application Programming Interface. The API is the source code interface with which a computer program or library lets other programs or libraries use its services.} and ABI\footnote{Application Binary Interface. An ABI allows object code to be run without changes on any system using a compatible ABI.}. Lastly, Kauer and V{\"o}lp from the Technische Universit{\"a}t Dresden have developed the L4.Sec specification \cite{kauer05reference}, which enhances the L4 specification with security features.
+
+\subsection{Design}
+Although the L4 kernel is created with minimalism in mind, there are a couple of basic concepts that have to be in the kernel:
+\begin{itemize}
+	\item Address spaces
+	\item Threads		
+	\item Inter-process communication
+	\item Mapping
+	\item Scheduling	
+\end{itemize}
+
+\textbf{Address spaces}
+An address space is a set of mappings from virtual- to physical memory. Address spaces form the mechanism through which task-isolation\footnote{Task-isolation is the inability of tasks to tamper with the data of other tasks without their consent.} is achieved. A flexpage is a contigous region of virtual address space.\emptyline
+
+\textbf{Threads}
+A thread is the single unit of execution. Each thread belongs to a single address space, with a predefined maximum number of threads per address space. An L4 thread is characterized by a set of registers, with the instruction pointer, stack pointer and state information being required and stored in the kernel in a structure called the thread control block (TCB\footnote{Not to be confused with Trusted Computing Base.}). \emptyline
+
+\textbf{Inter-process communication}
+The sole mechanism through which threads can communicate and exchange data is inter-process communication, which as a side-effect also increases independence between system components. IPC in L4 is always synchronous, which means that no data is exchanged unless both parties agree to. IPC is also unbuffered; the kernel does not temporarily store messages which are to be sent later. L4 offers two different types of IPC: short- and long IPC. Short IPC does not involve access of user space memory and thus cannot generate page-faults; long IPC \textit{does} access user space memory and thus has to take possible page-faults into account. Short IPC only allows a limited amount of data to be be sent, messages exceeding the short IPC limit have to be sent using long IPC. When possible, short IPC is used as it offers significant performance benefits. The IPC mechanism is also used to handle both hardware- and software- interrupts\footnote{An example of a software interrupt in L4 is a timeout.} and to map-, grant and unmap flexpages. A timeout can be set to enable (unsuccessful) IPC operations to be cancelled after a specified time.\emptyline
+
+\textbf{Mapping}
+When a page-fault is generated in a thread's address space, a notification is sent to the thread's associated pager (which can be different for each thread); that pager can then insert a memory page to resolve the page-fault. Threads can map-, grant- and unmap any of its flexpages to another thread. Mapping flexpages to another thread means that the flexpages will be shared between the mapper and the mappee. Granting a flexpage to another thread passes the control of that flexpage to the grantee, the granter afterwards cannot use the granted flexpage. The unmapping of a flexpage is the inverse operation of mapping a flexpage (it can only be invoked on mapped flexpages, not on granted flexpages). The mechanism through which this is possible is IPC, where a special IPC message is sent between the two threads involved in the memory mapping.\emptyline
+
+\textbf{Scheduling}
+The scheduling of threads in L4 is priority-based, which means that the ready thread with the highest priority is always the one to be allocated CPU-time. Each thread has a priority level (of which there are 256) and time quantum associated with it. Scheduling threads with the same priority level is done through a round-robin schedule\footnote{Round-robin scheduling lets the first thread of a list of waiting threads use the CPU for a period up to its time quantum. Should the thread not be finished when it's time quantum expires, the thread is moved to the end of the list and scheduling resumes with the first item of the list.}.\emptyline
+
+The L4 specification also mentions the concept of a \emph{task}, but this is essentially equivalent to the concept of an address space. The main difference between a task and an address space is a conceptual one: the former focuses on the system's memory and the latter focuses on the threads running in an address space. The L4 definition of a task is the set of threads sharing an address space. Creating a new task results in the creation of an address space with one thread in it.\emptyline
+
+As one of the L4 design goals was to implement no policies, how memory is allocated is left to the application(s) running on L4; the kernel only provides the means to allocate memory. The L4 specification specifies though that the initial address space, called $\sigma_0$, should comprise all available memory (excluding kernel-reserved memory).
+
+\subsubsection{IPC}
+As said, IPC communication is always synchronous and unbuffered. Each IPC call therefore involves exactly one sender and one receiver. L4 offers five different IPC calls: \emph{send}, \emph{receive}, \emph{wait}, \emph{reply-wait} and \emph{call}. An invocation of the send call results in the sending of a single message, after which the invoker continues his work. Invoking the receive call results in the invoker waiting to receive a message from \textit{any} sender. The wait call does the same as the receive call, but only accepts messages from a single, specified sender. The last two calls are basically predefined combinations of the aforementioned calls, where each combination reflects a common real-world scenario. The call method results in the sending of a message after which the sender waits for a return message from the receiver it just sent the message to. The reply-wait operation is one in which a single message is sent after which the invoker waits for a reply from any source.\emptyline
+
+A real-world example in which both the call- and reply-wait operations are used is a webserver. The webserver handles a request from a client, returns the results to the client and is then ready to receive a request from any client; this is equal to the reply-wait operation. From the perspective of the client, a call operation is done as the client subsequently requests data from the webserver and waits for a response from that same webserver.\emptyline
+
+For performance guarantees, the L4 specification requires that the transitition between the send- and receive states in a single IPC call requires no time\footnote{This also protects the receiver (server) against Denial Of Service attacks.} (also referred to as an atomic switch). Having an optimized path for frequently used situations clearly benefits the system's real-world performance. Another result of combining the send and receive operations in the call and reply-wait methods is that it saves system calls (without the call method, both a send- \textit{and} receive call would have to be made to achieve the same result). As Liedtke showed in \cite{liedtke93improve}, the switching between user- and kernel mode as the result of a system call is very expensive. In both combined calls a single system call is saved, which helps to improve IPC performance.
+
+\subsection{Implementations}
+The original L4 implementation by Jochen Liedtke, sometimes referred to as L4/x86, was completely written in assembly language to maximize performance. Writing a program in assembly language has some obvious disadvantages, of which poor readability- and maintainability are probably the most important ones. Therefore, and because of licensing issues, the Technische Universit{\"a}t Dresden developed an L4-based kernel in C++ named Fiasco, which demonstrated that an implementation of the L4 specification in a higher-level language was feasible. Apart from implementing the L4 specification, Fiasco also offers hard real-time support (which is not part of the L4 specification). Similarly, Jochen Liedtke and his team at the University of Karlsruhe developed L4Ka::Hazelnut, once again as proof that an L4 microkernel could be implemented in a higher level language and still offer high performance.\emptyline
+
+Up until this point, all L4 implementations were inheritly bound to the underlying architecture \cite{liedtke95kernel}. This changed with the advent of the L4.X2 specification. One of the first implementations of the L4.X2 specification was also developed at Karlsruhe and was named L4Ka::Pistacchio. The main aim of Pistacchio was on both performance \textit{and} portability. The new portability demand was clearly met by Pistacchio, as the supported platforms included Alpha-, ARM-, IA32-, MIPS- and PowerPC architectures. A relatively new specification and implementation originates from the National ICT Australia group. They have developed an L4 version specifically aimed at embedded systems called NICTA \cite{nicta05embedded}. 
+
+\begin{table}[ht]
+\begin{tabular}{l|l|p{20em}}
+Implementation & Versions & Architectures \\
+\hline
+NICTA::Pistachio-embedded & N1, N2 & IA-32, ARM, Mips64 \\
+L4Ka::Pistacchio & X2 & IA-32, IA-64, ARM, AMD64, PowerPC-32, PowerPC-64, Alpha, Mips64 \\
+L4Ka::Hazelnut & X0 & IA-32, ARM \\
+Fiasco & V2, X2 & IA-32, ARM, AMD64, UX \\
+L4/x86 & V2, X0 & IA-32 \\
+\end{tabular}
+\caption{Overview of several L4 implementations}
+\end{table}
+

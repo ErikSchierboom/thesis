@@ -1,0 +1,38 @@
+% Include the preamble
+\input{thesis_preamble}
+
+% Create the document by including the different components one by one ----------------------------------------------------------------------
+\begin{document}
+
+% Create the title page, but prevent the page anchoring of this
+% page (otherwise hyperref gives us a warning)
+\hypersetup{pageanchor=false}
+\maketitle \emptypage
+\hypersetup{pageanchor=true}
+
+\input{thesis_abstract} \emptypage
+\input{thesis_preface} \emptypage
+\input{thesis_acknowledgements} \emptypage
+
+% Display the table of contents
+\tableofcontents
+\listoffigures \emptypage
+\listoftables \emptypage
+\lstlistoflistings
+
+% Display the chapters
+\input{thesis_introduction}
+\input{thesis_backgrounds}
+\input{thesis_model_creation}
+\input{thesis_model_verification}
+\input{thesis_discussion}
+\input{thesis_conclusions}
+
+% Display the appendix
+%\input{thesis_appendix}
+
+% Display the bibliography
+\bibliography{references}
+\bibliographystyle{alpha}
+
+\end{document}

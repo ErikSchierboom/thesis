@@ -1,0 +1,86 @@
+% ------------------------------------------------------------------------------
+% In Fiasco there are several predefined thread states, here we model those
+% states. As our representation of the thread state as a record of boolean
+% values does not allow for easy bitwise combinining, we also created an empty-
+% and full thread state, in which none- respectively all bits are set, to allow
+% for easy creation of thread state masks.
+% ------------------------------------------------------------------------------
+fiasco_states: THEORY
+EXPORTING ALL WITH ALL
+BEGIN
+  % ----------------------------------------------------------------------------
+  % Import the theories which will be used in our lemmas.
+  % ----------------------------------------------------------------------------
+  IMPORTING fiasco_types
+
+  % ----------------------------------------------------------------------------
+  % Declare the state combinations that are used in Fiasco, which allow for easy
+  % updating of the state of a thread.
+  % ----------------------------------------------------------------------------
+
+  % The empty thread state has all state bits set to false.
+  %
+  % NOTE: this declaration cannot be found in the Fiasco source code, but has 
+  % been defined by us to allow for easy creation of thread states with 
+  % specific bits set.
+  TS_empty: Thread_state = TS WITH[thread_ready     := false,
+                                   thread_cancel    := false,
+                                   thread_dead      := false,
+                                   thread_busy      := false,
+                                   thread_invalid   := false,
+                                   thread_polling   := false,
+                                   thread_receiving := false,
+                                   thread_ipc_in_progress := false,
+                                   thread_send_in_progress := false,
+                                   thread_transfer_in_progress := false]
+
+  % The full thread state has all state bits set to true.
+  %
+  % NOTE: this declaration cannot be found in the Fiasco source code, but has 
+  % been defined by us to allow for easy creation of thread states with 
+  % specific bits unset.
+  TS_full: Thread_state = TS WITH[thread_ready     := true,
+                                  thread_cancel    := true,
+                                  thread_dead      := true,
+                                  thread_busy      := true,
+                                  thread_invalid   := true,
+                                  thread_polling   := true,
+                                  thread_receiving := true,
+                                  thread_ipc_in_progress := true,
+                                  thread_send_in_progress := true,
+                                  thread_transfer_in_progress := true]
+
+  % This state mask indicates that a thread is sending an IPC message.
+  TS_ipc_sending_mask: Thread_state = TS_empty WITH [
+                                         thread_send_in_progress := true,
+                                         thread_polling := true
+                                        ]
+
+  % This state mask indicates that a thread is receiving an IPC message.
+  TS_ipc_receiving_mask: Thread_state = TS_empty WITH [
+                                           thread_busy := true,
+                                           thread_receiving := true,
+                                           thread_transfer_in_progress := true
+                                          ]
+
+  % This state mask is a combination of the <TS_ipc_sending_mask> and 
+  % <TS_ipc_receiving_mask> masks with the addition of the 
+  % <thread_ipc_in_progress> bit being set.
+  TS_ipc_mask: Thread_state = TS_ipc_receiving_mask WITH [
+                                 thread_ipc_in_progress := true,
+                                 thread_send_in_progress := true,
+                                 thread_polling := true
+                                ]
+
+  % This mask is the sending mask with bits set that indicate that a
+  % transfer- and IPC is in progress.
+  %
+  % NOTE: this mask is not one that is actually defined in the Fiasco source
+  % code, but as it is used in several locations we decided to create a 
+  % single-point-of-definition which has become this thread state mask.
+  TS_ipc_end_mask: Thread_state = TS_ipc_sending_mask WITH [
+                                     thread_transfer_in_progress := true,
+                                     thread_ipc_in_progress := true
+                                    ]
+
+END fiasco_states

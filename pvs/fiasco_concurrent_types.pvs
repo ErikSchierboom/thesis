@@ -1,0 +1,111 @@
+fiasco_concurrent_types : THEORY
+EXPORTING ALL WITH ALL
+BEGIN
+  % The ID through which objects are identified.
+  Thread_pointer: TYPE = nat
+
+  % Define the invalid thread pointer.
+  Zero_thread: Thread_pointer
+
+  % We define the nil thread pointer.
+  Nil_thread: Thread_pointer
+
+  % This will be the thread used by the receiver as its partner.
+  Receiver_partner_thread: Thread_pointer
+
+  % Create a type which ensures that the <this> thread pointer is not the
+  % zero thread pointer as it does not point to an actual thread.
+  This_thread_pointer: TYPE = { tp: Thread_pointer | NOT tp = Zero_thread }
+
+  % Indicates if an error occured.
+  Ipc_err: TYPE = bool
+
+  % Indicates if a timeout occured.
+  L4_timeout: TYPE = bool
+
+  % Enumeration of the possible preemption actions.
+  Preemption_action: TYPE = {
+                              Nothing,            % Do nothing.
+                              Kill,               % Kill a thread.
+                              Timeout,            % A timeout occurs.
+                              Sys_thread_ex_regs, % IPC is cancelled.
+                              IPC                 % Engage in IPC.
+                            }
+
+  % Enumeration of the status the receiver's sender list can be in.
+  Sender_list: TYPE = {
+                        First,    % <this> is the first sender in the list.
+                        Enqueued, % <this> is enqueued but not the first item.
+                        Dequeued  % <this> is not in the non-empty list.
+                      }
+
+  % Enumeration of the states a sender list can be in:empty or not empty.
+  Sender_list_status: TYPE = {
+                               Empty,
+                               Non_empty
+                             }
+  
+  % A record of bools indicating which states a thread
+  % is in.
+  Thread_state: TYPE = [# thread_ready:   bool,
+                          thread_cancel:  bool,
+                          thread_dead:    bool,
+                          thread_busy:    bool,
+                          thread_invalid: bool,
+                          thread_polling: bool,
+                          thread_receiving: bool,
+                          thread_ipc_in_progress: bool,
+                          thread_send_in_progress: bool,
+                          thread_transfer_in_progress: bool #]
+
+  % The Context contains the Thread state.
+  Context: TYPE = [# state: Thread_state #]
+
+  % The Receiver role inherits from Context.
+  Receiver: TYPE = Context WITH [# partner: Thread_pointer, 
+                                   sender_list: Sender_list #]
+
+  % The Sender role.
+  Sender: TYPE = [# #]
+
+  % The thread control block (TCB) contain the values that are different for
+  % each thread and which are used to restore a thread to its previous
+  % execution state.
+  Thread_control_block: TYPE = [# have_send:    bool,
+                                  have_receive: bool,
+                                  have_timeout: bool,
+                                  this:         This_thread_pointer,
+                                  partner:      Thread_pointer #]
+
+  % A Fiasco Thread extends the Receiver- and Sender types and also has a 
+  % Thread_lock status indicating if the <this> Thread holds a Thread lock 
+  % on it and a field indicating if it has been killed. Because the Receiver
+  % type extends the Context type, the Thread type contains a member named 
+  % <state> of the Thread_state type.
+  Thread: TYPE = Sender WITH Receiver WITH [# thread_lock: Thread_pointer,
+                                              killed: bool,
+                                              tcb: Thread_control_block #]
+
+  % The thread list is a function which translates thread pointers to threads.
+  Thread_list: TYPE = [Thread_pointer -> Thread]
+
+  % The ready list contain the pointers to threads that are ready to run.
+  Ready_list: TYPE = list[This_thread_pointer]
+
+  % The system state represents the global state of the system.
+  System_state: TYPE = [# this:       This_thread_pointer,
+                          threads:    Thread_list,
+                          ready_list: Ready_list,
+                          error:      Ipc_err,
+                          timeout:    L4_timeout,
+                          seed:       nat,
+                          handshake_attempted:    bool,
+                          assertions_held:        bool,
+                          receiver_initialized:   bool,
+                          last_preemption_action: Preemption_action #]
+
+  % We use an undefined Thread state constant to define the empty- and full 
+  % thread states of which the state masks are derived.
+  TS: Thread_state
+
+END fiasco_concurrent_types

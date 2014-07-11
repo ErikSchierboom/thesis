@@ -1,0 +1,191 @@
+\hypertarget{pvs_fiasco_lock}{\chapter{PVS: fiasco\_lock.pvs}}
+\lstset{language=PVS}
+\begin{lstlisting}
+% ------------------------------------------------------------------------------
+% When the sender and receiver engage in IPC it is required that the receiver
+% is not locked by another thread, because otherwise the sender does not have
+% complete access to the receiver (which it needs to send the message). 
+% Therefore, when the receiver is a valid receiver (because otherwise IPC is 
+% prematurely aborted), the sender attempts a handshake with the receiver. 
+% Part of that handshake is a check if the receiver is locked by another thread.
+% If so, the sender acquires the thread lock. There are thus two possibilities 
+% for the receiver's thread lock: it is held by the sender (the <this> thread)or 
+% it is not held. After IPC has finished, the thread lock on the receiver should 
+% be released, because otherwise other threads cannot access the receiver thread.
+% ------------------------------------------------------------------------------
+fiasco_lock: THEORY
+BEGIN
+  % ----------------------------------------------------------------------------
+  % Import the theories which will be used in our lemmas.
+  % ----------------------------------------------------------------------------
+  IMPORTING fiasco_functions
+  IMPORTING fiasco_helpers 
+  
+  % ----------------------------------------------------------------------------
+  % Legend:
+  %   LEMMA %- : the lemma depends on an assumption.
+  %   LEMMA %/ : the lemma depends on an axiom.
+  % ----------------------------------------------------------------------------
+  
+  % ----------------------------------------------------------------------------
+  % Lemmas which involve the status of the <thread lock> field of the receiver.
+  % ----------------------------------------------------------------------------
+
+  % The thread lock on the partner is always free after calling abort_send().
+  abort_send_lock_free: LEMMA
+    FORALL (partner: Thread_pointer, state_old: System_state):
+      LET state_new = abort_send(partner,state_old) IN
+        state_new`threads(partner)`thread_lock = Zero_thread
+
+  % The thread lock on the partner is not changed by sender_enqueue().
+  sender_enqueue_lock_unchanged: LEMMA
+    FORALL (partner: Thread_pointer, state_old: System_state):
+      LET state_new = sender_enqueue(partner,state_old) IN
+        state_old`threads(partner)`thread_lock = 
+          state_new`threads(partner)`thread_lock
+
+  % The thread lock on the partner is not changed by timeout().
+  timeout_lock_unchanged: LEMMA
+    FORALL (partner: Thread_pointer, state_old: System_state):
+      LET state_new = timeout(state_old`this,state_old) IN
+        state_old`threads(partner)`thread_lock = 
+          state_new`threads(partner)`thread_lock
+
+  % The thread lock on the partner is not changed by kill().
+  kill_lock_unchanged: LEMMA
+    FORALL (partner: Thread_pointer, state_old: System_state):
+      LET state_new = kill(partner,state_old) IN
+        state_old`threads(partner)`thread_lock = 
+          state_new`threads(partner)`thread_lock
+
+  % The thread lock on the partner is not changed by ipc_receiver_ready_change().
+  ipc_receiver_ready_change_lock_unchanged: LEMMA 
+   FORALL (partner:Thread_pointer,state_old:System_state):
+    LET state_new = ipc_receiver_ready_change(state_old`this,partner,state_old)IN
+      state_old`threads(partner)`thread_lock = 
+        state_new`threads(partner)`thread_lock
+
+  % The thread lock on the partner is not changed by receiver_ready().
+  receiver_ready_lock_unchanged: LEMMA
+    FORALL(partner:Thread_pointer,state_old:System_state):
+      LET state_new = receiver_ready(state_old`this,partner,state_old) IN
+        state_old`threads(partner)`thread_lock = 
+          state_new`threads(partner)`thread_lock
+
+  % The thread lock on the partner is not changed by preemption_point_actions().
+  preemption_point_actions_lock_unchanged: LEMMA
+    FORALL (actions: Preemption_actions, partner: Thread_pointer, 
+            have_timeout: bool, state_old: System_state):
+      LET state_new = preemption_point_actions(actions,partner,have_timeout,
+                                               state_old) IN
+        state_old`threads(partner)`thread_lock = 
+          state_new`threads(partner)`thread_lock
+
+  % The thread lock on the partner is not changed by preemption_point().
+  preemption_point_lock_unchanged: LEMMA
+    FORALL (partner: Thread_pointer,have_timeout: bool,state_old: System_state):
+      LET state_new = preemption_point(partner,have_timeout,state_old) IN
+        state_old`threads(partner)`thread_lock = 
+          state_new`threads(partner)`thread_lock
+
+  % The thread lock on the partner is always free or held by the <this> thread
+  % after calling do_send_wait_finish() if initially the <this> thread is the
+  % owner of the thread lock on the receiver and if no error occurred while
+  % executing the function function.
+  do_send_wait_finish_no_error_lock_free_or_held: LEMMA
+    FORALL (partner: Thread_pointer,state_old: System_state):
+      LET state_new = do_send_wait_finish(partner,state_old) IN
+        NOT state_old`error AND 
+        NOT state_new`error AND
+        state_old`threads(partner)`thread_lock = state_old`this IMPLIES
+          state_new`threads(partner)`thread_lock = Zero_thread OR
+          state_new`threads(partner)`thread_lock = state_new`this
+
+  % The thread lock on the partner is always free or held by the <this> thread
+  % after calling do_send_wait_loop(), if initially the <this> thread is the
+  % owner of the thread lock on the receiver and if no error occurred while
+  % executing the function function.
+  do_send_wait_loop_no_error_lock_free_or_held: LEMMA
+    FORALL (partner: Thread_pointer,state_old: System_state):
+      LET state_new = do_send_wait_loop(partner,state_old) IN
+        NOT state_old`error AND 
+        NOT state_new`error AND
+        state_old`threads(partner)`thread_lock = state_old`this IMPLIES
+          state_new`threads(partner)`thread_lock = Zero_thread OR
+          state_new`threads(partner)`thread_lock = state_new`this
+
+  % The thread lock on the partner is always free or held by the <this> thread
+  % if no error occured in the executing of do_send_wait().
+  do_send_wait_no_error_lock_free_or_held: LEMMA
+    FORALL (partner: Thread_pointer,state_old: System_state):
+      LET state_new = do_send_wait(partner,state_old) IN
+        NOT state_old`error AND 
+        NOT state_new`error IMPLIES
+          state_new`threads(partner)`thread_lock = Zero_thread OR
+          state_new`threads(partner)`thread_lock = state_new`this
+
+  % The thread lock on the partner is always free or held by the <this> thread
+  % if no error occured in the executing of try_handshake_receiver().
+  try_handshake_receiver_no_error_lock_free_or_held: LEMMA
+    FORALL (partner: Thread_pointer,state_old: System_state):
+      LET state_new = try_handshake_receiver(partner,state_old) IN
+        NOT state_old`error AND 
+        NOT state_new`error IMPLIES
+          state_new`threads(partner)`thread_lock = Zero_thread OR
+          state_new`threads(partner)`thread_lock = state_new`this
+  
+  % The thread lock on the partner is always free if an error occured in the 
+  % execution of do_send_wait_finish().
+  do_send_wait_finish_error_lock_free: LEMMA
+    FORALL (partner: Thread_pointer, state_old: System_state):
+     LET state_new = do_send_wait_finish(partner,state_old) IN
+      state_new`error IMPLIES state_new`threads(partner)`thread_lock = Zero_thread
+
+  % The thread lock on the partner is always free if an error occured in the 
+  % execution of do_send_wait_loop().
+  do_send_wait_loop_error_lock_free: LEMMA
+    FORALL (partner: Thread_pointer, state_old: System_state):
+     LET state_new = do_send_wait_loop(partner,state_old) IN
+      state_new`error IMPLIES state_new`threads(partner)`thread_lock = Zero_thread
+
+  % The thread lock on the partner is always free if an error occured in the
+  % execution of do_send_wait().
+  do_send_wait_error_lock_free: LEMMA
+    FORALL (partner: Thread_pointer, state_old: System_state):
+     LET state_new = do_send_wait(partner,state_old) IN
+      state_new`error IMPLIES state_new`threads(partner)`thread_lock = Zero_thread
+ 
+  % The thread lock on the partner is always free if an error occured when 
+  % executing try_handshake_receiver() and a handshake has been attempted.
+  try_handshake_receiver_handshake_error_lock_free: LEMMA
+    FORALL (partner: Thread_pointer,state_old: System_state):
+      LET state_new = try_handshake_receiver(partner,state_old) IN
+        NOT state_old`handshake_attempted AND 
+        NOT state_old`error AND
+        state_new`handshake_attempted AND 
+        state_new`error IMPLIES
+          state_new`threads(partner)`thread_lock = Zero_thread
+
+  % The thread lock on the partner is always free after calling 
+  % do_ipc_send_part() if a handshake has been attempted.
+  do_ipc_send_part_handshake_attempted_lock_free: LEMMA
+    FORALL (partner: Thread_pointer,have_receive: bool,state_old: System_state):
+      LET state_new = do_ipc_send_part(partner,have_receive,state_old) IN
+        NOT state_old`handshake_attempted AND 
+        NOT state_old`error AND
+        state_new`handshake_attempted IMPLIES
+          state_new`threads(partner)`thread_lock = Zero_thread
+
+  % If an IPC handshake has been attempted on a valid IPC partner, this should
+  % imply that there is no thread lock on the partner after IPC has finished.
+  handshake_attempted_lock_free: LEMMA
+    FORALL (have_send: bool, partner: Thread_pointer, have_receive: bool,
+            sender: Thread_pointer, state_old: System_state):
+      % Engage in IPC with the supplied parameters.
+      LET state_new = sys_ipc(have_send,partner,
+                              have_receive,sender,state_old) IN
+        state_new`handshake_attempted IMPLIES 
+          state_new`threads(partner)`thread_lock = Zero_thread
+         
+END fiasco_lock
+\end{lstlisting}

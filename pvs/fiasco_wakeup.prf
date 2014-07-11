@@ -1,0 +1,420 @@
+(fiasco_wakeup
+ (wake_receiver_ready 0
+  (wake_receiver_ready-1 nil 3385977208 3385977216
+   ("" (skolem!)
+    (("" (ground)
+      (("" (expand "wake_receiver")
+        (("" (expand "state_change_dirty") (("" (propax) nil nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   untried
+   ((state_change_dirty const-decl "System_state" fiasco_functions nil)
+    (wake_receiver const-decl "System_state" fiasco_functions nil))
+   7904 110 t shostak))
+ (do_ipc_send_part_in_ipc_receiver_awoken 0
+  (do_ipc_send_part_in_ipc_receiver_awoken-1 nil 3385199711 3377517430
+   ("" (skolem!)
+    (("" (ground)
+      (("" (flatten)
+        ((""
+          (name-replace "do_ipc_send_part_state"
+           "do_ipc_send_part(partner!1, have_receive!1, state_old!1)"
+           :hide? nil)
+          (("" (expand "do_ipc_send_part")
+            ((""
+              (name-replace "transfer_msg_state"
+               "transfer_msg(partner!1,
+                                                                                         ipc_init(try_handshake_receiver(partner!1, state_old!1)`this,
+                                                                                                  partner!1,
+                                                                                                  try_handshake_receiver(partner!1, state_old!1)
+                                                                                                    WITH [(assertions_held)
+                                                                                                            := try_handshake_receiver(partner!1,
+                                                                                                                                      state_old!1)`assertions_held
+                                                                                                                AND
+                                                                                                                NOT try_handshake_receiver
+                                                                                                                    (partner!1, state_old!1)`threads
+                                                                                                                    (try_handshake_receiver
+                                                                                                                     (partner!1,
+                                                                                                                      state_old!1)`this)`state`thread_polling]))"
+               :hide? nil)
+              (("" (expand "clear_dirty_dont_switch")
+                (("" (expand "clear_dirty")
+                  (("" (expand "wake_receiver")
+                    (("" (expand "TS_ipc_end_mask")
+                      (("" (expand "transfer_msg")
+                        (("" (expand "ipc_init")
+                          (("" (expand "set_partner")
+                            (("" (expand "state_add_dirty")
+                              ((""
+                                (expand "TS_ipc_sending_mask")
+                                ((""
+                                  (expand "TS_empty")
+                                  ((""
+                                    (expand "TS_full")
+                                    ((""
+                                      (expand "state_del")
+                                      ((""
+                                        (expand "state_change_dirty")
+                                        ((""
+                                          (expand "state_del_dirty")
+                                          ((""
+                                            (case
+                                             "try_handshake_receiver(partner!1, state_old!1)`error")
+                                            (("1" (assert) nil nil)
+                                             ("2"
+                                              (assert)
+                                              (("2"
+                                                (name-replace
+                                                 "in_ipc_state"
+                                                 "in_ipc(transfer_msg_state`this, partner!1,
+                                                 transfer_msg_state
+                                                   WITH [(assertions_held)
+                                                           := transfer_msg_state`assertions_held AND
+                                                               (transfer_msg_state`threads(partner!1)`thread_lock = Zero_thread OR
+                                                                 transfer_msg_state`threads(partner!1)`thread_lock = transfer_msg_state`this)])"
+                                                 :hide?
+                                                 nil)
+                                                (("2"
+                                                  (name-replace
+                                                   "transfer_msg_state_with"
+                                                   "transfer_msg_state`threads
+                                                WITH [(partner!1)`state
+                                                        := transfer_msg_state`threads(partner!1)`state
+                                                             WITH [thread_ready := TRUE,
+                                                                   thread_cancel := transfer_msg_state`threads(partner!1)`state`thread_cancel,
+                                                                   thread_dead := transfer_msg_state`threads(partner!1)`state`thread_dead,
+                                                                   thread_busy := FALSE,
+                                                                   thread_invalid := transfer_msg_state`threads(partner!1)`state`thread_invalid,
+                                                                   thread_polling := transfer_msg_state`threads(partner!1)`state`thread_polling,
+                                                                   thread_receiving := FALSE,
+                                                                   thread_ipc_in_progress := FALSE,
+                                                                   thread_send_in_progress
+                                                                     := transfer_msg_state`threads(partner!1)`state`thread_send_in_progress,
+                                                                   thread_transfer_in_progress := FALSE]]"
+                                                   :hide?
+                                                   nil)
+                                                  (("2"
+                                                    (case
+                                                     "transfer_msg_state`error")
+                                                    (("1"
+                                                      (assert)
+                                                      (("1"
+                                                        (case
+                                                         "in_ipc_state")
+                                                        (("1"
+                                                          (assert)
+                                                          (("1"
+                                                            (lift-if)
+                                                            (("1"
+                                                              (case-replace
+                                                               "transfer_msg_state`this = partner!1")
+                                                              (("1"
+                                                                (assert)
+                                                                (("1"
+                                                                  (replace
+                                                                   -7
+                                                                   +
+                                                                   rl
+                                                                   :hide?
+                                                                   T)
+                                                                  (("1"
+                                                                    (assert)
+                                                                    nil
+                                                                    nil))
+                                                                  nil))
+                                                                nil)
+                                                               ("2"
+                                                                (assert)
+                                                                (("2"
+                                                                  (replace
+                                                                   -6
+                                                                   +
+                                                                   rl
+                                                                   :hide?
+                                                                   T)
+                                                                  (("2"
+                                                                    (assert)
+                                                                    nil
+                                                                    nil))
+                                                                  nil))
+                                                                nil))
+                                                              nil))
+                                                            nil))
+                                                          nil)
+                                                         ("2"
+                                                          (assert)
+                                                          (("2"
+                                                            (replace
+                                                             -4
+                                                             +
+                                                             rl
+                                                             :hide?
+                                                             T)
+                                                            (("2"
+                                                              (assert)
+                                                              nil
+                                                              nil))
+                                                            nil))
+                                                          nil))
+                                                        nil))
+                                                      nil)
+                                                     ("2"
+                                                      (assert)
+                                                      (("2"
+                                                        (case
+                                                         "NOT have_receive!1")
+                                                        (("1"
+                                                          (replace
+                                                           -1
+                                                           *
+                                                           rl)
+                                                          (("1"
+                                                            (replace
+                                                             -1
+                                                             *)
+                                                            (("1"
+                                                              (replace
+                                                               1
+                                                               -4)
+                                                              (("1"
+                                                                (case
+                                                                 "in_ipc_state")
+                                                                (("1"
+                                                                  (assert)
+                                                                  (("1"
+                                                                    (replace
+                                                                     -5
+                                                                     +
+                                                                     rl
+                                                                     :hide?
+                                                                     T)
+                                                                    (("1"
+                                                                      (assert)
+                                                                      (("1"
+                                                                        (lift-if)
+                                                                        (("1"
+                                                                          (case-replace
+                                                                           " partner!1 = transfer_msg_state`this")
+                                                                          (("1"
+                                                                            (assert)
+                                                                            nil
+                                                                            nil)
+                                                                           ("2"
+                                                                            (assert)
+                                                                            nil
+                                                                            nil))
+                                                                          nil))
+                                                                        nil))
+                                                                      nil))
+                                                                    nil))
+                                                                  nil)
+                                                                 ("2"
+                                                                  (assert)
+                                                                  (("2"
+                                                                    (expand
+                                                                     "in_ipc")
+                                                                    (("2"
+                                                                      (expand
+                                                                       "in_ipc_state")
+                                                                      (("2"
+                                                                        (expand
+                                                                         "in_ipc")
+                                                                        (("2"
+                                                                          (hide-all-but
+                                                                           (-3
+                                                                            -4
+                                                                            1))
+                                                                          (("2"
+                                                                            (flatten)
+                                                                            (("2"
+                                                                              (lift-if)
+                                                                              (("2"
+                                                                                (case-replace
+                                                                                 "transfer_msg_state`this = partner!1")
+                                                                                (("1"
+                                                                                  (assert)
+                                                                                  (("1"
+                                                                                    (replace
+                                                                                     -2
+                                                                                     *
+                                                                                     rl
+                                                                                     :hide?
+                                                                                     T)
+                                                                                    (("1"
+                                                                                      (assert)
+                                                                                      nil
+                                                                                      nil))
+                                                                                    nil))
+                                                                                  nil)
+                                                                                 ("2"
+                                                                                  (assert)
+                                                                                  (("2"
+                                                                                    (replace
+                                                                                     -1
+                                                                                     *
+                                                                                     rl
+                                                                                     :hide?
+                                                                                     T)
+                                                                                    (("2"
+                                                                                      (assert)
+                                                                                      (("2"
+                                                                                        (assert)
+                                                                                        nil
+                                                                                        nil))
+                                                                                      nil))
+                                                                                    nil))
+                                                                                  nil))
+                                                                                nil))
+                                                                              nil))
+                                                                            nil))
+                                                                          nil))
+                                                                        nil))
+                                                                      nil))
+                                                                    nil))
+                                                                  nil))
+                                                                nil))
+                                                              nil))
+                                                            nil))
+                                                          nil)
+                                                         ("2"
+                                                          (assert)
+                                                          (("2"
+                                                            (case
+                                                             "NOT in_ipc(transfer_msg_state`this, partner!1,
+                    transfer_msg_state
+                      WITH [(assertions_held)
+                              := transfer_msg_state`assertions_held AND
+                                  (transfer_msg_state`threads(partner!1)`thread_lock = Zero_thread OR
+                                    transfer_msg_state`threads(partner!1)`thread_lock = transfer_msg_state`this),
+                            (threads)(partner!1)`thread_lock := Zero_thread])")
+                                                            (("1"
+                                                              (replace
+                                                               1
+                                                               -
+                                                               rl)
+                                                              (("1"
+                                                                (replace
+                                                                 -5
+                                                                 +
+                                                                 rl
+                                                                 :hide?
+                                                                 T)
+                                                                (("1"
+                                                                  (lift-if)
+                                                                  (("1"
+                                                                    (case-replace
+                                                                     "transfer_msg_state`this = partner!1")
+                                                                    (("1"
+                                                                      (assert)
+                                                                      nil
+                                                                      nil)
+                                                                     ("2"
+                                                                      (assert)
+                                                                      nil
+                                                                      nil))
+                                                                    nil))
+                                                                  nil))
+                                                                nil))
+                                                              nil)
+                                                             ("2"
+                                                              (replace
+                                                               -1
+                                                               -6)
+                                                              (("2"
+                                                                (replace
+                                                                 -6
+                                                                 +
+                                                                 rl
+                                                                 :hide?
+                                                                 T)
+                                                                (("2"
+                                                                  (assert)
+                                                                  nil
+                                                                  nil))
+                                                                nil))
+                                                              nil))
+                                                            nil))
+                                                          nil))
+                                                        nil))
+                                                      nil))
+                                                    nil))
+                                                  nil))
+                                                nil))
+                                              nil))
+                                            nil))
+                                          nil))
+                                        nil))
+                                      nil))
+                                    nil))
+                                  nil))
+                                nil))
+                              nil))
+                            nil))
+                          nil))
+                        nil))
+                      nil))
+                    nil))
+                  nil))
+                nil))
+              nil))
+            nil))
+          nil))
+        nil))
+      nil))
+    nil)
+   proved
+   ((bool nonempty-type-eq-decl nil booleans nil)
+    (Ipc_err type-eq-decl nil fiasco_types nil)
+    (Preemption_action type-decl nil fiasco_types nil)
+    (nat nonempty-type-eq-decl nil naturalnumbers nil)
+    (This_thread_pointer type-eq-decl nil fiasco_types nil)
+    (Thread_list type-eq-decl nil fiasco_types nil)
+    (L4_timeout type-eq-decl nil fiasco_types nil)
+    (System_state type-eq-decl nil fiasco_types nil)
+    (boolean nonempty-type-decl nil booleans nil)
+    (= const-decl "[T, T -> boolean]" equalities nil)
+    (number nonempty-type-decl nil numbers nil)
+    (number_field_pred const-decl "[number -> boolean]" number_fields
+     nil)
+    (number_field nonempty-type-from-decl nil number_fields nil)
+    (real_pred const-decl "[number_field -> boolean]" reals nil)
+    (real nonempty-type-from-decl nil reals nil)
+    (rational_pred const-decl "[real -> boolean]" rationals nil)
+    (rational nonempty-type-from-decl nil rationals nil)
+    (integer_pred const-decl "[rational -> boolean]" integers nil)
+    (int nonempty-type-eq-decl nil integers nil)
+    (>= const-decl "bool" reals nil)
+    (Thread_pointer type-eq-decl nil fiasco_types nil)
+    (do_ipc_send_part const-decl "System_state" fiasco_functions nil)
+    (transfer_msg const-decl "System_state" fiasco_functions nil)
+    (ipc_init const-decl "System_state" fiasco_functions nil)
+    (try_handshake_receiver const-decl "System_state" fiasco_functions
+     nil)
+    (AND const-decl "[bool, bool -> bool]" booleans nil)
+    (NOT const-decl "[bool -> bool]" booleans nil)
+    (clear_dirty const-decl "System_state" fiasco_functions nil)
+    (TS_ipc_end_mask const-decl "Thread_state" fiasco_states nil)
+    (state_add_dirty const-decl "System_state" fiasco_functions nil)
+    (TS_empty const-decl "Thread_state" fiasco_states nil)
+    (state_del const-decl "System_state" fiasco_functions nil)
+    (state_del_dirty const-decl "System_state" fiasco_functions nil)
+    (Thread_state type-eq-decl nil fiasco_types nil)
+    (Sender_list type-decl nil fiasco_types nil)
+    (Thread type-eq-decl nil fiasco_types nil)
+    (TRUE const-decl "bool" booleans nil)
+    (FALSE const-decl "bool" booleans nil)
+    (in_ipc_state skolem-const-decl "bool" fiasco_wakeup nil)
+    (Zero_thread const-decl "Thread_pointer" fiasco_types nil)
+    (OR const-decl "[bool, bool -> bool]" booleans nil)
+    (in_ipc const-decl "bool" fiasco_functions nil)
+    (state_change_dirty const-decl "System_state" fiasco_functions nil)
+    (TS_full const-decl "Thread_state" fiasco_states nil)
+    (TS_ipc_sending_mask const-decl "Thread_state" fiasco_states nil)
+    (set_partner const-decl "System_state" fiasco_functions nil)
+    (wake_receiver const-decl "System_state" fiasco_functions nil)
+    (clear_dirty_dont_switch const-decl "System_state" fiasco_functions
+     nil))
+   2096772 49690 t shostak)))
+

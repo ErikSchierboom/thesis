@@ -1,0 +1,38 @@
+\subsection{Property 2: waking up receiver in combined send/receive}
+
+\subsubsection{Definition}
+When a combined send- and receive IPC call is made, the sender and receiver both assume the sender- and receiver role. First, the sender tries to send a message to the receiver. Once that has been successful, the sender enters a state in which it waits for the receiver to send a message back. It is at this point that the roles are swapped: the sender becomes the receiver and vice versa. When the receiver assumes the sender role, it should be in a state where it is ready to be scheduled. Should this not be the case, it might never be scheduled, which in turn would result in the sender forever waiting for a message from the receiver. It is therefore imperative that when the receiver assumes the sender role, it is in a state ready to be scheduled.
+
+\subsubsection{Model details}
+Whether a thread is ready to be scheduled depends on a single state bit being set: the \emph{thread\_ready} bit. As we have already modelled threads and their states (including the \emph{thread\_ready} bit), we are only left with determining if the receiver will be assigned the sender role during IPC. For this purpose, we can use a function of Fiasco IPC which determines if a sender and receiver are engaged in IPC: \emph{in\_ipc()}. The definition of this function is listed below:
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: \emph{in\_ipc()} definition.}]
+% Indicates if the receiver is engaged in IPC with the sender.
+in_ipc(sender: Thread_pointer, receiver: Thread_pointer, 
+       state_old: System_state): bool =
+  state_old`threads(receiver)`state`thread_transfer_in_progress AND
+  state_old`threads(receiver)`state`thread_ipc_in_progress AND NOT
+  state_old`threads(receiver)`state`thread_cancel AND 
+  state_old`threads(receiver)`partner = sender
+\end{lstlisting}
+
+At any single moment it is thus possible to determine if a sender and receiver are engaged in IPC with each other. We can use this in our property to determine, after the send part, if the sender and receiver are still engaged in IPC, as this implies that the sender expects a message back from the receiver, which thus will assume the sender role.
+
+\subsubsection{Verification and problems}
+The formal definition in PVS of our wakeup property is as follows:
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: property 2, formal definition.}]
+% When the sender- and receiver are still engaged in IPC after the send part
+% has finished, the receiver should be in a state ready to be scheduled, which
+% means that the <thread_ready> bit of the receiver should be set.
+do_ipc_send_part_in_ipc_receiver_awoken: LEMMA
+  FORALL (partner: Thread_pointer,have_receive: bool,state_old: System_state):
+    LET state_new = do_ipc_send_part(partner,have_receive,state_old) IN
+      NOT state_new`error AND in_ipc(state_new`this,partner,state_new) IMPLIES
+        state_new`threads(partner)`state`thread_ready 
+\end{lstlisting}
+
+This lemma clearly states that if the sender (pointed to by \emph{state\_new`this}) and the receiver (pointed to by \emph{partner}) are still engaged in IPC after finishing the send part, the \emph{thread\_ready} bit of the receiver should be set. Once again we require that the \emph{error} field is unset before calling \emph{do\_ipc\_send\_part()}, the reasoning follows the one laid down in the previous property.
+

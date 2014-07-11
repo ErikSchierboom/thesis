@@ -1,0 +1,153 @@
+\hypertarget{pvs_fiasco_types}{\chapter{PVS: fiasco\_types.pvs}}
+\lstset{language=PVS}
+\begin{lstlisting}
+% ------------------------------------------------------------------------------
+% The datatypes in Fiasco that we use in our model are defined here, examples
+% of those datatypes include threads, timeouts and thread states.
+% ------------------------------------------------------------------------------
+fiasco_types : THEORY
+EXPORTING ALL WITH ALL
+BEGIN
+  % A pointer to a thread is just an integer, this reflects a C++ pointer also
+  % being an integer.
+  Thread_pointer: TYPE = int
+
+  % Define the zero thread pointer, which represents the C++ NULL pointer.
+  Zero_thread: Thread_pointer
+
+  % The nil thread pointer points to a special thread (the nil thread) that
+  % executes when no other threads are being executed.
+  Nil_thread: Thread_pointer
+
+  % This will be the thread used by the receiver as its partner, it is defined
+  % as an uninterpreted constant.
+  Receiver_partner_thread: Thread_pointer
+
+  % The pointer to the current active thread (the <this> thread) must never be
+  % the <Zero_thread> (as it points to nothing) and thus we have defined
+  % a special type of thread pointer for the <this> thread which excludes the
+  % thread pointer being equal to the <Zero_thread>.
+  This_thread_pointer: TYPE = { tp: Thread_pointer | NOT tp = Zero_thread }
+
+  % Most functions in Fiasco return an error code, of which there are many.
+  % However, we are only interested in whether an error occured and thus the
+  % error code is modelled as a boolean value.
+  Ipc_err: TYPE = bool
+
+  % Indicates if a timeout occured, additional details of timeouts such as 
+  % the exact time at which they expire are not of interest to us.
+  L4_timeout: TYPE = bool
+
+  % Enumeration of the possible preemption actions. Normally, a preemption 
+  % point might result in a thread switch which can then influence the ongoing
+  % IPC we are modeling. However, we have abstracted away thread scheduling 
+  % (and thus the thread switch) and are thus only interested in the result
+  % such a thread switch might have on the ongoing IPC. In our model, there
+  % are five different effects a preemption point can have; these actions
+  % are defined (and described briefly) in the enumeration below.
+  %
+  % NOTE: these actions are by no means complete, one of the actions we have
+  % not modelled is a concurrent sender which also tries to send a message to
+  % the receiver.
+  Preemption_action: TYPE = {
+                              Nothing,            % Nothing happens.
+                              Kill,               % The partner is killed.
+                              Timeout,            % A timeout occurs.
+                              Sys_thread_ex_regs, % IPC is cancelled.
+                              Receiver_ready      % The receiver becomes ready.
+                            }
+
+  % When a preemption point is called, it can have five possible effects on the
+  % ongoing IPC (as described in the <Preemption_action> enumeration). However,
+  % it is not said that only a single <Preemption_action> occurs in a preemption
+  % point, it is possible that combinations of preemption actions take place.
+  % Therefore when a preemption point is called, it executes a (random) list of
+  % preemption actions which we define here.
+  Preemption_actions: TYPE = list[Preemption_action]
+
+  % Enumeration of the status the receiver's sender list can be in. We are not
+  % interested in the actual implementation of the sender list but only in the
+  % status it results in.
+  Sender_list: TYPE = {
+                        First,    % <this> is the first sender in the list.
+                        Enqueued, % <this> is enqueued but not the first item.
+                        Dequeued  % <this> is not in the non-empty list.
+                      }
+
+  % Enumeration of the states a sender list can be in, which is either an empty
+  % or non-empty state.
+  Sender_list_status: TYPE = {
+                               Empty,
+                               Non_empty
+                             }
+  
+  % In Fiasco the thread state is defined as a bit mask, but for clarity and 
+  % simplicity we have chosen to model it as a record of boolean values 
+  % where a field's boolean value reflects the corresponding bit being set.
+  %
+  % NOTE: our thread state does not contain all state bits that are defined
+  % in Fiasco, they form the minimal subset of state bits that is necessary
+  % for the properties we have modelled. One example of a state bit that we
+  % have not included is the <thread_polling_long> bit, as it is only used in
+  % long IPC and we have not modelled long IPC.
+  Thread_state: TYPE = [# thread_ready:   bool,
+                          thread_cancel:  bool,
+                          thread_dead:    bool,
+                          thread_busy:    bool,
+                          thread_invalid: bool,
+                          thread_polling: bool,
+                          thread_receiving: bool,
+                          thread_ipc_in_progress: bool,
+                          thread_send_in_progress: bool,
+                          thread_transfer_in_progress: bool #]
+
+  % The context contains the thread state, here a lot of details have been
+  % abstracted away which mostly concern scheduling.
+  Context: TYPE = [# state: Thread_state #]
+
+  % The receiver role inherits from <Context> and adds two fields: <partner> and
+  % <sender_list>. The first reflects the fact that a receiver always has a 
+  % partner associated with it and the second reflects the threads that want to
+  % engage in IPC with the receiver.
+  Receiver: TYPE = Context WITH [# partner: Thread_pointer, 
+                                   sender_list: Sender_list #]
+
+  % The sender role in our model does not have any real function, but we have
+  % included it for use in possible later extensions of our model.
+  Sender: TYPE = [# #]
+
+  % A Fiasco thread extends both the <Receiver>- and <Sender> types. The thread
+  % also has a field <thread_lock>, which points to the locking thread. If a
+  % thread is not locked, the <thread_lock> field is equal to the <Zero_thread>. 
+  Thread: TYPE = Sender WITH Receiver WITH [# thread_lock: Thread_pointer #]
+
+  % The thread list is a function which translates thread pointers to threads;
+  % this reflects the C++ concept of pointers to objects (in this case pointers
+  % to threads).
+  Thread_list: TYPE = [Thread_pointer -> Thread]
+
+  % The system state represents the global state of the system. We had to 
+  % introduce a global state as C++ functions can have side-effects, which is not
+  % supported by the the functional language PVS uses. Therefore, we had to 
+  % devise a solution which enabled the global state to be modified by each 
+  % function without using side-effects. Our solution was to have each function,
+  % that has side-effects, receive- and return the global system state. The 
+  % global system state can then be accessed and modified by all those functions.
+  System_state: TYPE = 
+            [# 
+              this:    This_thread_pointer, % Pointer to active thread.
+              threads: Thread_list,         % List of all threads.
+              error:   Ipc_err,             % Indicates if error occurred.
+              timeout: L4_timeout,          % Indicates if timeout occurred.
+              seed:    nat,                 % Seed used for randomness.
+              handshake_attempted:  bool,   % Indicates if handshake attempted.
+              assertions_held:      bool,   % Indicates if assertions held.
+              receiver_initialized: bool    % Receiver state initialized.
+            #]
+
+  % We use an uninterpreted thread state constant to define other thread states
+  % with, for example the empty- and full thread states are derived of it.
+  TS: Thread_state
+
+END fiasco_types
+\end{lstlisting}

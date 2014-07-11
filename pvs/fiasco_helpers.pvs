@@ -1,0 +1,286 @@
+% ------------------------------------------------------------------------------
+% There are many lemmas that are used in more than one of our property theories,
+% for these lemmas we have created this separate theory, which other theories 
+% can easily import and use in their proofs.
+% ------------------------------------------------------------------------------
+fiasco_helpers: THEORY
+BEGIN
+  % ----------------------------------------------------------------------------
+  % Import the theories which will be used in our lemmas.
+  % ----------------------------------------------------------------------------
+  IMPORTING fiasco_functions  
+
+  % ----------------------------------------------------------------------------
+  % Legend:
+  %   LEMMA %- : the lemma depends on an assumption.
+  %   LEMMA %/ : the lemma depends on an axiom.
+  % ----------------------------------------------------------------------------
+
+  % ----------------------------------------------------------------------------
+  % Lemmas which involve the <sender_list> field of the receiver.
+  % ----------------------------------------------------------------------------
+
+  % When the <this> thread is initially dequeued from the sender list, that will
+  % also be the case after calling timeout().
+  timeout_dequeued_unchanged: LEMMA
+    FORALL(receiver:Thread_pointer,state_old:System_state):
+      LET state_new = timeout(state_old`this,state_old) IN
+        state_old`threads(receiver)`sender_list = Dequeued IMPLIES
+          state_new`threads(receiver)`sender_list = Dequeued
+
+  % When the <this> thread is initially dequeued from the sender list, that will
+  % also be the case after calling kill().
+  kill_dequeued_unchanged: LEMMA
+    FORALL(receiver:Thread_pointer,state_old:System_state):
+      LET state_new = kill(receiver,state_old) IN
+        state_old`threads(receiver)`sender_list = Dequeued IMPLIES
+          state_new`threads(receiver)`sender_list = Dequeued
+
+  % When the <this> thread is initially dequeued from the sender list, that will
+  % also be the case after calling receiver_ready().
+  receiver_ready_dequeued_unchanged: LEMMA
+   FORALL(sender:Thread_pointer,receiver:Thread_pointer,state_old:System_state):
+     LET state_new = receiver_ready(state_old`this,receiver,state_old) IN
+       state_old`threads(receiver)`sender_list = Dequeued IMPLIES
+          state_new`threads(receiver)`sender_list = Dequeued
+
+  % When the <this> thread is initially dequeued from the sender list, that will
+  % also be the case after calling preemption_point_actions().
+  preemption_point_actions_dequeued_unchanged: LEMMA
+    FORALL (actions: Preemption_actions, allow_timeout: bool, 
+            partner: Thread_pointer, state_old: System_state):
+      LET state_new = preemption_point_actions(actions,partner,
+                                               allow_timeout,state_old) IN
+        state_old`threads(partner)`sender_list = Dequeued IMPLIES
+          state_new`threads(partner)`sender_list = Dequeued
+
+  % When the <this> thread is initially dequeued from the sender list, that will 
+  % also be the case after calling preemption_point().
+  preemption_point_dequeued_unchanged: LEMMA
+    FORALL (partner:Thread_pointer,allow_timeout:bool,state_old:System_state):
+      LET state_new = preemption_point(partner,allow_timeout,state_old) IN
+        state_old`threads(partner)`sender_list = Dequeued IMPLIES
+          state_new`threads(partner)`sender_list = Dequeued
+
+  % ----------------------------------------------------------------------------
+  % Lemmas which involve the status of the <timeout> system state field.
+  % ----------------------------------------------------------------------------
+
+  % The <timeout> field is not changed by calling sender_enqueue().
+  sender_enqueue_timeout_unchanged: LEMMA
+    FORALL (receiver:Thread_pointer,state_old: System_state):
+      LET state_new = sender_enqueue(receiver,state_old) IN
+        state_old`timeout = state_new`timeout
+
+  % The <timeout> field is not changed by calling kill().
+  kill_timeout_unchanged: LEMMA
+    FORALL(receiver:Thread_pointer,state_old:System_state):
+      LET state_new = kill(receiver,state_old) IN
+        state_old`timeout = state_new`timeout
+    
+  % The <timeout> field is not changed by calling receiver_ready().
+  receiver_ready_timeout_unchanged: LEMMA
+   FORALL(sender:Thread_pointer,receiver:Thread_pointer,state_old:System_state):
+     LET state_new = receiver_ready(state_old`this,receiver,state_old) IN
+       state_old`timeout = state_new`timeout
+
+  % When no timeouts are allowed, the <timeout> value will not be changed by
+  % calling preemption_point_actions().
+  preemption_point_actions_timeout_unchanged: LEMMA
+    FORALL (actions: Preemption_actions, partner: Thread_pointer,
+            state_old: System_state):
+      LET state_new = preemption_point_actions(actions,partner,
+                                               false,state_old) IN
+        state_old`timeout = state_new`timeout
+
+  % When no timeouts are allowed, the <timeout> value will not be changed by
+  % calling preemption_point().
+  preemption_point_timeout_unchanged: LEMMA
+    FORALL (partner:Thread_pointer,state_old: System_state):
+      LET state_new = preemption_point(partner,false,state_old) IN
+        state_old`timeout = state_new`timeout
+
+  % When initially the <timeout> field is set, that will still be the case after
+  % calling preemption_point_actions().
+  preemption_point_actions_timeout: LEMMA
+    FORALL (actions: Preemption_actions, allow_timeout: bool,
+            partner: Thread_pointer, state_old: System_state):
+      LET state_new = preemption_point_actions(actions,partner,
+                                               allow_timeout,state_old) IN
+        state_old`timeout IMPLIES state_new`timeout
+
+  % When initially the <timeout> field is set, that will still be the case after
+  % calling preemption_point().
+  preemption_point_timeout: LEMMA
+    FORALL (partner:Thread_pointer,allow_timeout:bool,state_old: System_state):
+      LET state_new = preemption_point(partner,allow_timeout,state_old) IN
+        state_old`timeout IMPLIES state_new`timeout
+
+  % ----------------------------------------------------------------------------
+  % Lemmas which involve the value of the <error> system state field.
+  % ----------------------------------------------------------------------------
+
+  % The sender_enqueue() function leaves the <error> field unmodified.
+  sender_enqueue_error_unchanged: LEMMA 
+    FORALL (partner: Thread_pointer,state_old: System_state):
+      LET state_new = sender_enqueue(partner,state_old) IN
+        state_old`error = state_new`error
+
+  % The timeout() function leaves the <error> field unmodified.
+  timeout_error_unchanged: LEMMA
+    FORALL(state_old:System_state):
+      LET state_new = timeout(state_old`this,state_old) IN
+        state_old`error = state_new`error
+
+  % The kill() function leaves the <error> field unmodified.
+  kill_error_unchanged: LEMMA
+    FORALL(receiver:Thread_pointer,state_old:System_state):
+      LET state_new = kill(receiver,state_old) IN
+        state_old`error = state_new`error
+
+  % The ipc_receiver_ready_change() function leaves the <error> field unmodified.
+  ipc_receiver_ready_change_error_unchanged: LEMMA
+   FORALL (partner: Thread_pointer,state_old: System_state):
+    LET state_new = ipc_receiver_ready_change(state_old`this,partner,state_old)IN
+      state_old`error = state_new`error
+
+  % The receiver_ready() function leaves the <error> field unmodified.
+  receiver_ready_error_unchanged: LEMMA 
+    FORALL (partner: Thread_pointer,state_old: System_state):
+      LET state_new = receiver_ready(state_old`this,partner,state_old) IN
+        state_old`error = state_new`error
+
+  % The preemption_point_actions() function leaves the <error> field unmodified.
+  preemption_point_actions_error_unchanged: LEMMA
+    FORALL (actions: Preemption_actions, partner: Thread_pointer, 
+            have_timeout: bool,state_old: System_state):
+      LET state_new = preemption_point_actions(actions,partner,
+                                               have_timeout,state_old) IN
+        state_old`error = state_new`error
+
+  % The preemption_point() function leaves the <error> field unmodified.
+  preemption_point_error_unchanged: LEMMA
+    FORALL (partner: Thread_pointer,have_timeout: bool,state_old: System_state):
+      LET state_new = preemption_point(partner,have_timeout,state_old) IN
+        state_old`error = state_new`error
+
+  % ----------------------------------------------------------------------------
+  % Lemmas which involve the value of the <this> system state field.
+  % ----------------------------------------------------------------------------
+
+  % Indicate that the <this> field is not changed by calling sender_dequeue().
+  sender_dequeue_this_unchanged: LEMMA
+    FORALL(partner:Thread_pointer,state_old:System_state):
+      LET state_new = sender_dequeue(partner,state_old) IN
+        state_old`this = state_new`this
+
+  % Indicate that the <this> field is not changed by calling sender_enqueue().
+  sender_enqueue_this_unchanged: LEMMA
+    FORALL(partner:Thread_pointer,state_old:System_state):
+      LET state_new = sender_enqueue(partner,state_old) IN
+        state_old`this = state_new`this
+
+  % Indicate that the <this> field is not changed by calling
+  % prepare_receive_dirty().
+  prepare_receive_dirty_this_unchanged: LEMMA
+    FORALL(sender:Thread_pointer,receiver:Thread_pointer,state_old:System_state):
+      LET state_new = prepare_receive_dirty(sender,receiver,state_old) IN
+        state_old`this = state_new`this
+
+  % Indicate that the <this> field is not changed by calling timeout().
+  timeout_this_unchanged: LEMMA
+    FORALL(state_old:System_state):
+      LET state_new = timeout(state_old`this,state_old) IN
+        state_old`this = state_new`this
+
+  % Indicate that the <this> field is not changed by calling kill().
+  kill_this_unchanged: LEMMA
+    FORALL(receiver:Thread_pointer,state_old:System_state):
+      LET state_new = kill(receiver,state_old) IN
+        state_old`this = state_new`this
+
+  % Indicate that the <this> field is not changed by calling
+  % ipc_receiver_ready_change().
+  ipc_receiver_ready_change_this_unchanged: LEMMA
+    FORALL(receiver:Thread_pointer,state_old:System_state):
+      LET state_new = ipc_receiver_ready_change(state_old`this,receiver,
+                                                state_old) IN
+        state_old`this = state_new`this
+  
+  % Indicate that the <this> field is not changed by calling receiver_ready().
+  receiver_ready_this_unchanged: LEMMA
+    FORALL(receiver:Thread_pointer,state_old:System_state):
+      LET state_new = receiver_ready(state_old`this,receiver,state_old) IN
+        state_old`this = state_new`this
+
+  % Indicate that the <this> field is not changed by calling
+  % preemption_point_actions().
+  preemption_point_actions_this_unchanged: LEMMA
+    FORALL (actions: Preemption_actions, partner: Thread_pointer, 
+            have_timeout: bool,state_old: System_state):
+      LET state_new = preemption_point_actions(actions,partner,
+                                               have_timeout,state_old) IN
+        state_old`this = state_new`this
+
+  % Indicate that the <this> field is not changed by calling preemption_point().
+  preemption_point_this_unchanged: LEMMA
+    FORALL (partner: Thread_pointer,have_timeout: bool,state_old: System_state):
+      LET state_new = preemption_point(partner,have_timeout,state_old) IN
+        state_old`this = state_new`this
+
+  % Indicate that the <this> field is not changed by calling abort_send().
+  abort_send_this_unchanged: LEMMA
+    FORALL (partner: Thread_pointer, state_old: System_state):
+      LET state_new = abort_send(partner,state_old) IN
+        state_old`this = state_new`this
+ 
+  % Indicate that the <this> field is not changed by calling
+  % do_send_wait_finish().
+  do_send_wait_finish_this_unchanged: LEMMA
+    FORALL (partner: Thread_pointer, state_old: System_state):
+      LET state_new = do_send_wait_finish(partner,state_old) IN
+        state_old`this = state_new`this
+       
+  % Indicate that the <this> field is not changed by calling 
+  % do_send_wait_loop().
+  do_send_wait_loop_this_unchanged: LEMMA
+    FORALL (partner: Thread_pointer, state_old: System_state):
+      LET state_new = do_send_wait_loop(partner,state_old) IN
+       state_old`this = state_new`this
+
+  % Indicate that the <this> field is not changed by calling do_send_wait().
+  do_send_wait_this_unchanged: LEMMA
+    FORALL (partner: Thread_pointer, state_old: System_state):
+      LET state_new = do_send_wait(partner,state_old) IN
+        state_old`this = state_new`this
+ 
+  % Indicate that the <this> field is not changed by calling
+  % try_handshake_receiver().
+  try_handshake_receiver_this_unchanged: LEMMA
+    FORALL (partner: Thread_pointer,state_old: System_state):
+      LET state_new = try_handshake_receiver(partner,state_old) IN
+        state_old`this = state_new`this
+
+  % Indicate that the <this> field is not changed by calling do_ipc_send_part().
+  do_ipc_send_part_this_unchanged: LEMMA
+    FORALL (partner: Thread_pointer,have_receive: bool,state_old: System_state):
+      LET state_new = do_ipc_send_part(partner,have_receive,state_old) IN
+        state_old`this = state_new`this
+
+  % Indicate that the <this> field is not changed by calling
+  % do_ipc_receive_part().
+  do_ipc_receive_part_this_unchanged: LEMMA
+    FORALL (sender: Thread_pointer,have_receive: bool,state_old: System_state):
+      LET state_new = do_ipc_receive_part(sender,have_receive,state_old) IN
+        state_old`this = state_new`this
+ 
+  % Indicate that the <this> field is not changed by calling sys_ipc().
+  sys_ipc_this_unchanged: LEMMA
+    FORALL (have_send: bool, partner: Thread_pointer, have_receive: bool,
+            sender: Thread_pointer, state_old: System_state):
+      % Engage in IPC with the supplied parameters.
+      LET state_new = sys_ipc(have_send,partner,
+                              have_receive,sender,state_old) IN
+        state_old`this = state_new`this
+
+END fiasco_helpers

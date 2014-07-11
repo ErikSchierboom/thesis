@@ -1,0 +1,88 @@
+\subsection{Property 1: removal of sender's thread lock on receiver}
+
+\subsubsection{Definition}
+When a sender wants to send a message to a receiver, they first have to agree upon engaging in IPC; this is referred to as the \emph{handshake}. If the handshake has been successful, the sender will try to send the message to the receiver. During the message sending, it is vital that the receiver thread is not locked by another thread, as otherwise the message could not be transferred. Therefore, when the receiver is locked by another thread, the sender acquires that lock before sending the message. After the message has been sent, there should not be any thread lock remaining on the receiver, as it then becomes unavailable to other threads until the lock is released.
+
+\subsubsection{Model details}
+In Fiasco, acquiring a thread lock is done by calling \emph{lock\_dirty()}, wherein the lock owner of the target thread is set to the current thread (which, in our model, corresponds to the sender thread pointed to by the \emph{this} field in the system state). The \emph{lock\_dirty()} function in our model is a typical example of an abstracted function. In Fiasco, when the \emph{lock\_dirty()} function sees that the targeted thread is already locked by another thread, it enters a loop from which it only breaks if the lock has been released\footnote{To help the lock be released as soon as possible, the waiting thread donates its execution time to the lock owner; this mechanism is described in more detail in the Fiasco backgrounds section.}. The end result of the function is that the targeted thread is locked by the current thread. In our model, we only modelled this result and did not model the loop at all. We consider this a safe abstraction, as we are only interested in the result of the function, which is always the same.
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: \emph{lock\_dirty()} function.}]
+% Set the thread lock of the partner thread to the <this> thread.
+lock_dirty(partner: Thread_pointer,state_old: System_state): System_state =
+  state_old WITH [(threads)(partner)`thread_lock := state_old`this]
+\end{lstlisting}
+
+For the release of a thread lock, there are two similar functions, which only differ slightly in their functionality. The main difference is that in the first function, \emph{clear\_dirty()}, the release of the lock can involve a switch of execution context. However, as this was undesirable in some cases, the \emph{clear\_dirty\_dont\_switch()} function was created. As we have not modelled scheduling (which includes execution context switches), both functions are functionally equal in our model. As the implementation details have once again largely been abstracted (just as in the \emph{lock\_dirty()} function), the two functions have exactly the same definition in our model. We have still included both functions as it allows for a better reflection of the source code and it allows for an easier transition should we later decide to model scheduling.
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: \emph{clear\_dirty()} and \emph{clear\_dirty\_dont\_switch()} functions.}]
+% Remove the thread lock on the partner thread by setting the thread lock
+% owner to the zero thread.
+clear_dirty(partner: Thread_pointer, state_old: System_state): System_state =
+  state_old WITH [(threads)(partner)`thread_lock := Zero_thread]
+
+% Remove the thread lock on the partner thread by setting the thread lock
+% owner to the zero thread.
+clear_dirty_dont_switch(partner: Thread_pointer, 
+                        state_old: System_state): System_state =
+  state_old WITH [(threads)(partner)`thread_lock := Zero_thread]
+\end{lstlisting}
+
+As we had already modelled thread locks, the only required alteration to our model (we consider the function mentioned above as additions, not alterations) was to incorporate the notion of a handshake, which takes place in the \emph{try\_handshake\_receiver()} function. However, we needed to check the success of a handshake \textit{after} the send part had finished (which is represented by the \emph{do\_send\_part()} function) and therefore a field named \emph{handshake\_attempted} was added to the system state:
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: basic system state, with integrated \emph{handshake\_attempted} field.}]
+System_state: TYPE = 
+            [# 
+              this:    This_thread_pointer, % Pointer to active thread.
+              threads: Thread_list,         % List of all threads.
+              error:   Ipc_err,             % Indicates if error occurred.
+              timeout: L4_timeout,          % Indicates if timeout occurred.
+              seed:    nat,                 % Seed used for randomness.
+              handshake_attempted: bool     % Indicates if handshake attempted.
+            #]
+\end{lstlisting}
+
+We can now set the \emph{handshake\_attempted} field in the \emph{try\_handshake\_receiver()} function; initially its value is set to false (in the \emph{sys\_ipc()} function), which reflects the fact that initially no handshake has been attempted.
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: setting the \emph{handshake} field.}]
+try_handshake_receiver(partner: Thread_pointer, 
+                       state_old: System_state): System_state =
+  % Immediately return with an error if the partner is the Zero- or Nil thread
+  % or the partner is an invalid thread.
+  IF partner = Zero_thread OR
+     state_old`threads(partner)`state`thread_invalid OR 
+     partner = Nil_thread
+  THEN
+    state_old WITH [error := true]
+  ELSE
+  LET 
+    % Set the <handshake_attempted> field to true because the receiver is 
+    % valid.
+    state_temp = state_old WITH [handshake_attempted := true] 
+  IN
+    [...]
+  ENDIF
+\end{lstlisting}
+
+\subsubsection{Verification and problems}
+We are now ready to give the formal definition of our property in PVS:
+
+\lstset{language=PVS}
+\begin{lstlisting}[caption={PVS: property 1, formal definition.}]
+% If a handshake has been attempted, that should imply that after finishing 
+% the send part, there should be no thread lock on the partner.
+do_ipc_send_part_handshake_attempted_lock_free: LEMMA
+  FORALL (partner: Thread_pointer,have_receive: bool,state_old: System_state):
+    LET state_new = do_ipc_send_part(partner,have_receive,state_old) IN
+      NOT state_old`handshake_attempted AND 
+      NOT state_old`error AND
+      state_new`handshake_attempted IMPLIES
+        state_new`threads(partner)`thread_lock = Zero_thread
+\end{lstlisting}
+
+The lemma states that if a handshake has been attempted in the send part, the receiver (named \emph{partner} for similarity to the Fiasco source code) has no thread locking it after handling the send part. Although the definition is pretty self-explanatory, there remains one odd requirement in the lemma: initially the \emph{error} field of the system state must not be set. This requirement can be explained quite easily when we remember its semantics, which are that it signifies if an error occurred. When \emph{do\_ipc\_send\_part()} is called, the \emph{error} field should be set to false as no error can have occurred at that time. This holds in our model as no error-returning functions are called before \emph{do\_ipc\_send\_part()}; combined with the initialization to false by \emph{sys\_ipc()}, this results in the \emph{error} field being false before \emph{do\_ipc\_send\_part()} is called.\emptyline
+
+One of the problems we encountered was that, due to an initial lack of modularity, we only defined the lemma listed above and thus small changes in the model often required (almost) the whole lemma to be redone. To circumvent this, we split the proof into parts, where each function received its own lock-related lemma. In this situation, lemmas became dependent upon other lemmas, essentially creating a sort of hierarchy with the formal property lemma at the top. This modular approach was much more resistant against changes in the model, most often a change in the model only required a single proof to be redone. Therefore, this approach has also been taken in the verification of the other properties (where applicable).

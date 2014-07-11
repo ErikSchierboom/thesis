@@ -1,0 +1,191 @@
+% The following substitutions are from the file:
+%   /usr/local/pvs-4.0/pvs-tex.sub
+\def\setsotherremovetwofn#1#2{{(#2 \setminus \{#1\})}}% How to print function sets.remove with arity (2)
+\def\setsotheraddtwofn#1#2{{(#2 \cup \{#1\})}}% How to print function sets.add with arity (2)
+\def\setsotherdifferencetwofn#1#2{{(#1 \setminus #2)}}% How to print function sets.difference with arity (2)
+\def\setsothercomplementonefn#1{{\overline{#1}}}% How to print function sets.complement with arity (1)
+\def\setsotherintersectiontwofn#1#2{{(#1 \cap #2)}}% How to print function sets.intersection with arity (2)
+\def\setsotheruniontwofn#1#2{{(#1 \cup #2)}}% How to print function sets.union with arity (2)
+\def\setsotherstrictunderscoresubsetothertwofn#1#2{{(#1 \subset #2)}}% How to print function sets.strict_subset? with arity (2)
+\def\setsothersubsetothertwofn#1#2{{(#1 \subseteq #2)}}% How to print function sets.subset? with arity (2)
+\def\setsothermembertwofn#1#2{{(#1 \in #2)}}% How to print function sets.member with arity (2)
+\def\opohtwofn#1#2{{#1\circ#2}}% How to print function O with arity (2)
+\def\opdividetwofn#1#2{{#1/#2}}% How to print function / with arity (2)
+\def\optimestwofn#1#2{{#1\times#2}}% How to print function * with arity (2)
+\def\opdifferenceonefn#1{{-#1}}% How to print function - with arity (1)
+\def\opdifferencetwofn#1#2{{#1-#2}}% How to print function - with arity (2)
+\def\opplustwofn#1#2{{#1+#2}}% How to print function + with arity (2)
+
+The proof of the {\tt assertions\_held} lemma starts with the formula as we have defined it earlier. As a precondition, it requires that initially the \emph{thread\_polling} bit of the \emph{this} thread is not set. If this precondition is met, all assertions should hold (indicated by requiring the \emph{assertions\_held} field to be true) after calling \emph{sys\_ipc()}:\vspace{2mm}
+
+{\small
+\begin{tabular}{|cl}
+\strut\\\hline
+$\{\mbox{\rm 1}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\(\forall\) \pvsid{(}\pvsid{have\_send}: \pvsid{bool}, \pvsid{partner}: \pvsid{Thread\_pointer}, \pvsid{have\_receive}: \pvsid{bool}, \pvsid{sender}: \pvsid{Thread\_pointer},
+     \pvsid{state\_old}: \pvsid{System\_state}\pvsid{)}:
+  \pvskey{LET} \pvsid{state\_new} \pvskey{=} \pvsid{sys\_ipc}\pvsid{(}\pvsid{have\_send}, \pvsid{partner}, \pvsid{have\_receive}, \pvsid{sender}, \pvsid{state\_old}\pvsid{)} \pvskey{IN}
+    \(\neg\) \pvsid{state\_old}`\pvsid{threads}\pvsid{(}\pvsid{state\_old}`\pvsid{this}\pvsid{)}`\pvsid{state}`\pvsid{thread\_polling} \(\implies\) \pvsid{state\_new}`\pvsid{assertions\_held}\end{alltt}}\end{minipage}\\
+\end{tabular}
+}\vspace{6mm}
+
+After some initializing commands (namely \pvscmt{(skolem!)}\footnote{When applying automatic skolemization, the \('\) character is appended to universal quantifiers to indicate the constants they are replaced with. Unfortunately, the \('\) character is very similar to the ` character that is used to access fields in a record. As an example of the possible confusion, accessing the \pvsid{this} field of the \pvsid{state\_old}\('\) constant translates to: \pvsid{state\_old}\('\)`\pvsid{this}.}, \pvscmt{(ground)} and \pvscmt{(flatten)}), we end up with a basic version of the formula we want to prove:\vspace{2mm}
+
+{\small
+\begin{tabular}{|cl}
+\strut\\\hline
+$\{\mbox{\rm 1}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\(\pvsid{state\_old}'\)`\pvsid{threads}\pvsid{(}\(\pvsid{state\_old}'\)`\pvsid{this}\pvsid{)}`\pvsid{state}`\pvsid{thread\_polling}\end{alltt}}\end{minipage}\\$\{\mbox{\rm 2}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\pvsid{sys\_ipc}\pvsid{(}\(\pvsid{have\_send}'\), \(\pvsid{partner}'\), \(\pvsid{have\_receive}'\), \(\pvsid{sender}'\), \(\pvsid{state\_old}'\)\pvsid{)}`\pvsid{assertions\_held}\end{alltt}}\end{minipage}\\
+\end{tabular}
+}\newpage
+
+We can see that the \emph{thread\_polling} requirement appears as consequent 1, which means that we can assume that it does not hold. If we could prove that it \textit{does} hold, our proof would be completed. In our case, we will use consequent 1 to prove consequent 2. We now expand \emph{sys\_ipc()} to see its definition, where we see that it calls \emph{do\_ipc()} with the initialized system state as one of its parameters:\vspace{2mm}
+
+{\small
+\begin{tabular}{|cl}
+\strut\\\hline
+$\{\mbox{\rm 1}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\(\pvsid{state\_old}'\)`\pvsid{threads}\pvsid{(}\(\pvsid{state\_old}'\)`\pvsid{this}\pvsid{)}`\pvsid{state}`\pvsid{thread\_polling}\end{alltt}}\end{minipage}\\$\{\mbox{\rm 2}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\pvskey{IF} \(\pvsid{have\_send}'\) \(\vee\) \(\pvsid{have\_receive}'\)
+  \pvskey{THEN} \pvsid{do\_ipc}\pvsid{(}\(\pvsid{have\_send}'\), \(\pvsid{partner}'\), \(\pvsid{have\_receive}'\), \(\pvsid{sender}'\),
+               \(\pvsid{state\_old}'\)
+                 \pvskey{WITH} \({\pvsbracketl}\)\pvsid{(}\pvsid{error}\pvsid{)} \pvskey{:=} \({\pvskey{FALSE}}\),
+                        \pvsid{(}\pvsid{timeout}\pvsid{)} \pvskey{:=} \({\pvskey{FALSE}}\),
+                        \pvsid{(}\pvsid{handshake\_attempted}\pvsid{)} \pvskey{:=} \({\pvskey{FALSE}}\),
+                        \pvsid{(}\pvsid{assertions\_held}\pvsid{)} \pvskey{:=} \({\pvskey{TRUE}}\),
+                        \pvsid{(}\pvsid{receiver\_initialized}\pvsid{)} \pvskey{:=} \({\pvskey{FALSE}}\)\({\pvsbracketr}\)\pvsid{)}`\pvsid{assertions\_held}
+\pvskey{ELSE} \({\pvskey{TRUE}}\)
+\pvskey{ENDIF}\end{alltt}}\end{minipage}\\
+\end{tabular}
+}\vspace{6mm}
+
+To prevent the same, initialized state from being displayed several times, we issue a \pvscmt{(name-replace)} command. In our proof, this results in all occurences of the initialized state being replaced with the name \emph{state\_old\_initialized}:\vspace{2mm}
+
+{\small
+\begin{tabular}{|cl}
+$\{\mbox{\rm -1}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\(\pvsid{state\_old}'\)
+  \pvskey{WITH} \({\pvsbracketl}\)\pvsid{(}\pvsid{error}\pvsid{)} \pvskey{:=} \({\pvskey{FALSE}}\),
+         \pvsid{(}\pvsid{timeout}\pvsid{)} \pvskey{:=} \({\pvskey{FALSE}}\),
+         \pvsid{(}\pvsid{handshake\_attempted}\pvsid{)} \pvskey{:=} \({\pvskey{FALSE}}\),
+         \pvsid{(}\pvsid{assertions\_held}\pvsid{)} \pvskey{:=} \({\pvskey{TRUE}}\),
+         \pvsid{(}\pvsid{receiver\_initialized}\pvsid{)} \pvskey{:=} \({\pvskey{FALSE}}\)\({\pvsbracketr}\)
+ \(=\) \pvsid{state\_old\_initialized}\vspace{1mm}\end{alltt}}\end{minipage}\\\hline
+$\{\mbox{\rm 1}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\(\pvsid{state\_old}'\)`\pvsid{threads}\pvsid{(}\(\pvsid{state\_old}'\)`\pvsid{this}\pvsid{)}`\pvsid{state}`\pvsid{thread\_polling}\end{alltt}}\end{minipage}\\$\{\mbox{\rm 2}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\pvskey{IF} \(\pvsid{have\_send}'\) \(\vee\) \(\pvsid{have\_receive}'\)
+  \pvskey{THEN} \pvsid{do\_ipc}\pvsid{(}\(\pvsid{have\_send}'\), \(\pvsid{partner}'\), \(\pvsid{have\_receive}'\), \(\pvsid{sender}'\),
+               \pvsid{state\_old\_initialized}\pvsid{)}`\pvsid{assertions\_held}
+\pvskey{ELSE} \({\pvskey{TRUE}}\)
+\pvskey{ENDIF}\end{alltt}}\end{minipage}\\
+\end{tabular}
+}\emptyline
+
+Of course, the replaced state itself should still be known, so antecedent -1 is added to reflect the equality introduced by \pvscmt{(name-replace)}. The result of the replace action itself can be seen in consequent 2. Please note that this command serves only cosmetic purposes, it does not change the state by any means. Although at this point the replace is only introducing overhead, our later sequents will benefit from it.\newpage
+
+Once again, we have to expand a function to continue, in this case we expand \emph{do\_ipc}:\vspace{2mm}
+
+{\small
+\begin{tabular}{|cl}
+$\{\mbox{\rm -1}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\(\pvsid{state\_old}'\)
+  \pvskey{WITH} \({\pvsbracketl}\)\pvsid{(}\pvsid{error}\pvsid{)} \pvskey{:=} \({\pvskey{FALSE}}\),
+         \pvsid{(}\pvsid{timeout}\pvsid{)} \pvskey{:=} \({\pvskey{FALSE}}\),
+         \pvsid{(}\pvsid{handshake\_attempted}\pvsid{)} \pvskey{:=} \({\pvskey{FALSE}}\),
+         \pvsid{(}\pvsid{assertions\_held}\pvsid{)} \pvskey{:=} \({\pvskey{TRUE}}\),
+         \pvsid{(}\pvsid{receiver\_initialized}\pvsid{)} \pvskey{:=} \({\pvskey{FALSE}}\)\({\pvsbracketr}\)
+ \(=\) \pvsid{state\_old\_initialized}\vspace{1mm}\end{alltt}}\end{minipage}\\\hline
+$\{\mbox{\rm 1}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\(\pvsid{state\_old}'\)`\pvsid{threads}\pvsid{(}\(\pvsid{state\_old}'\)`\pvsid{this}\pvsid{)}`\pvsid{state}`\pvsid{thread\_polling}\end{alltt}}\end{minipage}\\$\{\mbox{\rm 2}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\pvskey{IF} \(\pvsid{have\_send}'\) \(\vee\) \(\pvsid{have\_receive}'\)
+  \pvskey{THEN} \pvskey{IF} \(\pvsid{have\_receive}'\) \(\wedge\)
+           \(\neg\) \pvskey{IF} \(\pvsid{have\_send}'\)
+                \pvskey{THEN} \pvsid{do\_ipc\_send\_part}\pvsid{(}\(\pvsid{partner}'\), \(\pvsid{have\_receive}'\), \pvsid{state\_old\_initialized}\pvsid{)}`\pvsid{error}
+              \pvskey{ELSE} \pvsid{state\_old\_initialized}`\pvsid{error}
+              \pvskey{ENDIF}
+         \pvskey{THEN} \pvsid{do\_ipc\_receive\_part}\pvsid{(}\(\pvsid{sender}'\), \({\pvskey{TRUE}}\),
+                                   \pvskey{IF} \(\pvsid{have\_send}'\)
+                                     \pvskey{THEN} \pvsid{do\_ipc\_send\_part}\pvsid{(}\(\pvsid{partner}'\),
+                                                            \({\pvskey{TRUE}}\),
+                                                            \pvsid{state\_old\_initialized}\pvsid{)}
+                                   \pvskey{ELSE} \pvsid{state\_old\_initialized}
+                                   \pvskey{ENDIF}\pvsid{)}`\pvsid{assertions\_held}
+       \pvskey{ELSE} \pvskey{IF} \(\pvsid{have\_send}'\)
+              \pvskey{THEN} \pvsid{do\_ipc\_send\_part}\pvsid{(}\(\pvsid{partner}'\), \(\pvsid{have\_receive}'\),
+                                     \pvsid{state\_old\_initialized}\pvsid{)}`\pvsid{assertions\_held}
+            \pvskey{ELSE} \pvsid{state\_old\_initialized}`\pvsid{assertions\_held}
+            \pvskey{ENDIF}
+       \pvskey{ENDIF}
+\pvskey{ELSE} \({\pvskey{TRUE}}\)
+\pvskey{ENDIF}\end{alltt}}\end{minipage}\\
+\end{tabular}
+}\emptyline
+
+The benefit of the \pvscmt{(name-replace)} command can now clearly be seen, had not we not issued this command there would have been six (identical) initialized states being displayed. When one looks at how many lines the initialized state definition occupies, the replacement is a big improvement in readability.\newpage
+
+At this point, one might expect that we would begin to instantiate the \emph{have\_send} or \emph{have\_receive} constants, which would introduce branching into our proof. Although this is possible, we first expand \emph{do\_ipc\_receive\_part()}, as by definition it does not change the \emph{assertions\_held} field. It thus has no influence on consequent 2, which leads to a simplified version of the consequent. This will prove beneficial later in the proof:\vspace{2mm}
+
+{\small
+\begin{tabular}{|cl}
+$\{\mbox{\rm -1}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\(\pvsid{state\_old}'\)
+  \pvskey{WITH} \({\pvsbracketl}\)\pvsid{(}\pvsid{error}\pvsid{)} \pvskey{:=} \({\pvskey{FALSE}}\),
+         \pvsid{(}\pvsid{timeout}\pvsid{)} \pvskey{:=} \({\pvskey{FALSE}}\),
+         \pvsid{(}\pvsid{handshake\_attempted}\pvsid{)} \pvskey{:=} \({\pvskey{FALSE}}\),
+         \pvsid{(}\pvsid{assertions\_held}\pvsid{)} \pvskey{:=} \({\pvskey{TRUE}}\),
+         \pvsid{(}\pvsid{receiver\_initialized}\pvsid{)} \pvskey{:=} \({\pvskey{FALSE}}\)\({\pvsbracketr}\)
+ \(=\) \pvsid{state\_old\_initialized}\vspace{1mm}\end{alltt}}\end{minipage}\\\hline
+$\{\mbox{\rm 1}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\(\pvsid{state\_old}'\)`\pvsid{threads}\pvsid{(}\(\pvsid{state\_old}'\)`\pvsid{this}\pvsid{)}`\pvsid{state}`\pvsid{thread\_polling}\end{alltt}}\end{minipage}\\$\{\mbox{\rm 2}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\pvskey{IF} \(\pvsid{have\_send}'\) \(\vee\) \(\pvsid{have\_receive}'\)
+  \pvskey{THEN} \pvskey{IF} \(\pvsid{have\_receive}'\) \(\wedge\)
+           \(\neg\) \pvskey{IF} \(\pvsid{have\_send}'\)
+                \pvskey{THEN} \pvsid{do\_ipc\_send\_part}\pvsid{(}\(\pvsid{partner}'\), \(\pvsid{have\_receive}'\), \pvsid{state\_old\_initialized}\pvsid{)}`\pvsid{error}
+              \pvskey{ELSE} \pvsid{state\_old\_initialized}`\pvsid{error}
+              \pvskey{ENDIF}
+         \pvskey{THEN} \pvskey{IF} \(\pvsid{have\_send}'\)
+                \pvskey{THEN} \pvsid{do\_ipc\_send\_part}\pvsid{(}\(\pvsid{partner}'\), \({\pvskey{TRUE}}\), \pvsid{state\_old\_initialized}\pvsid{)}`\pvsid{assertions\_held}
+              \pvskey{ELSE} \pvsid{state\_old\_initialized}`\pvsid{assertions\_held}
+              \pvskey{ENDIF}
+       \pvskey{ELSE} \pvskey{IF} \(\pvsid{have\_send}'\)
+              \pvskey{THEN} \pvsid{do\_ipc\_send\_part}\pvsid{(}\(\pvsid{partner}'\), \(\pvsid{have\_receive}'\),
+                                     \pvsid{state\_old\_initialized}\pvsid{)}`\pvsid{assertions\_held}
+            \pvskey{ELSE} \pvsid{state\_old\_initialized}`\pvsid{assertions\_held}
+            \pvskey{ENDIF}
+       \pvskey{ENDIF}
+\pvskey{ELSE} \({\pvskey{TRUE}}\)
+\pvskey{ENDIF}\end{alltt}}\end{minipage}\\
+\end{tabular}
+}\newpage
+
+Once again, one might expect us to introduce branching in our proof at this point. However, as we are only left with the \emph{do\_ipc\_send\_part()} function, we can use the \emph{do\_ipc\_send\_part\_assertions\_held} lemma listed earlier. This lemma states that calling \emph{do\_ipc\_send\_part()} results in the \emph{assertions\_held} field being true, which is precisely what we want to prove. If we add the lemma to our proof (with the \pvscmt{(lemma)} command) and automatically instantiate it (using the \pvscmt{(inst?)} command), we get the following result:\vspace{2mm}
+
+{\small
+\begin{tabular}{|cl}
+$\{\mbox{\rm -1}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\pvskey{LET} \pvsid{state\_new} \pvskey{=} \pvsid{do\_ipc\_send\_part}\pvsid{(}\(\pvsid{partner}'\), \(\pvsid{have\_receive}'\), \pvsid{state\_old\_initialized}\pvsid{)} \pvskey{IN}
+  \(\neg\) \pvsid{state\_old\_initialized}`\pvsid{error} \(\wedge\)
+   \(\neg\) \pvsid{state\_old\_initialized}`\pvsid{timeout} \(\wedge\)
+    \(\neg\) \pvsid{state\_old\_initialized}`\pvsid{threads}\pvsid{(}\pvsid{state\_old\_initialized}`\pvsid{this}\pvsid{)}`\pvsid{state}`\pvsid{thread\_polling} \(\wedge\)
+     \pvsid{state\_old\_initialized}`\pvsid{assertions\_held}
+   \(\implies\) \pvsid{state\_new}`\pvsid{assertions\_held}\vspace{1mm}\end{alltt}}\end{minipage}\\$\{\mbox{\rm -2}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\(\pvsid{state\_old}'\)
+  \pvskey{WITH} \({\pvsbracketl}\)\pvsid{(}\pvsid{error}\pvsid{)} \pvskey{:=} \({\pvskey{FALSE}}\),
+         \pvsid{(}\pvsid{timeout}\pvsid{)} \pvskey{:=} \({\pvskey{FALSE}}\),
+         \pvsid{(}\pvsid{handshake\_attempted}\pvsid{)} \pvskey{:=} \({\pvskey{FALSE}}\),
+         \pvsid{(}\pvsid{assertions\_held}\pvsid{)} \pvskey{:=} \({\pvskey{TRUE}}\),
+         \pvsid{(}\pvsid{receiver\_initialized}\pvsid{)} \pvskey{:=} \({\pvskey{FALSE}}\)\({\pvsbracketr}\)
+ \(=\) \pvsid{state\_old\_initialized}\vspace{1mm}\end{alltt}}\end{minipage}\\\hline
+$\{\mbox{\rm 1}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\(\pvsid{state\_old}'\)`\pvsid{threads}\pvsid{(}\(\pvsid{state\_old}'\)`\pvsid{this}\pvsid{)}`\pvsid{state}`\pvsid{thread\_polling}\end{alltt}}\end{minipage}\\$\{\mbox{\rm 2}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\pvskey{IF} \(\pvsid{have\_send}'\) \(\vee\) \(\pvsid{have\_receive}'\)
+  \pvskey{THEN} \pvskey{IF} \(\pvsid{have\_receive}'\) \(\wedge\)
+           \(\neg\) \pvskey{IF} \(\pvsid{have\_send}'\)
+                \pvskey{THEN} \pvsid{do\_ipc\_send\_part}\pvsid{(}\(\pvsid{partner}'\), \(\pvsid{have\_receive}'\), \pvsid{state\_old\_initialized}\pvsid{)}`\pvsid{error}
+              \pvskey{ELSE} \pvsid{state\_old\_initialized}`\pvsid{error}
+              \pvskey{ENDIF}
+         \pvskey{THEN} \pvskey{IF} \(\pvsid{have\_send}'\)
+                \pvskey{THEN} \pvsid{do\_ipc\_send\_part}\pvsid{(}\(\pvsid{partner}'\), \({\pvskey{TRUE}}\), \pvsid{state\_old\_initialized}\pvsid{)}`\pvsid{assertions\_held}
+              \pvskey{ELSE} \pvsid{state\_old\_initialized}`\pvsid{assertions\_held}
+              \pvskey{ENDIF}
+       \pvskey{ELSE} \pvskey{IF} \(\pvsid{have\_send}'\)
+              \pvskey{THEN} \pvsid{do\_ipc\_send\_part}\pvsid{(}\(\pvsid{partner}'\), \(\pvsid{have\_receive}'\),
+                                     \pvsid{state\_old\_initialized}\pvsid{)}`\pvsid{assertions\_held}
+            \pvskey{ELSE} \pvsid{state\_old\_initialized}`\pvsid{assertions\_held}
+            \pvskey{ENDIF}
+       \pvskey{ENDIF}
+\pvskey{ELSE} \({\pvskey{TRUE}}\)
+\pvskey{ENDIF}\end{alltt}}\end{minipage}\\
+\end{tabular}
+}\vspace{6mm}
+
+We see that the \emph{do\_ipc\_send\_part\_assertions\_held} lemma has been added as antecent -1, with filled in values due to the automatic instantiation. A closer look at those values reveals that they correspond to the values in consequent 2, which is precisely what we want as we want to prove that consequent 2 holds. However, there are some additional requirements that have to be met before antecent -1 can be said to hold. Among these requirements we find that the \emph{thread\_polling} bit should initially not be set, which is precisely what consequent 1 states. The other requirements correspond directly to the initialization done by \emph{sys\_ipc()}, and can therefore be directly found in antecedent -2. We thus have all requirements to prove antecent -1, which allows us to prove that consequent 2 holds. Please note that by expanding \emph{do\_ipc\_receive\_part()} and using the \emph{do\_ipc\_send\_part\_assertions\_held} lemma, we did not have to introduce any branching in our proof. Most often though, this will not be possible.\emptyline
+
+To finish the proof, two calls to \pvscmt{(assert)} suffice; the first is necessary for antecent -1 to be removed of its \emph{LET} construction and the second completes the proof:\vspace{2mm}
+
+This completes the proof of {\tt assertions\_held}.\emptyline
+
+Q.E.D.

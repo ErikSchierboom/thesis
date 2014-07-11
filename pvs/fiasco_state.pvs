@@ -1,0 +1,292 @@
+% ------------------------------------------------------------------------------
+% Many lemmas depend on specific bits of a thread state to be set or unset after
+% calling a function. For all those lemmas dealing with state bits that are not
+% directly tied to a property, we have created this separate theory, which other
+% theories can easily import and use.
+% ------------------------------------------------------------------------------
+fiasco_state: THEORY
+BEGIN
+  % ----------------------------------------------------------------------------
+  % Import the theories which will be used in our lemmas.
+  % ----------------------------------------------------------------------------
+  IMPORTING fiasco_functions
+  IMPORTING fiasco_lock
+  IMPORTING fiasco_helpers
+  
+  % ----------------------------------------------------------------------------
+  % Legend:
+  %   LEMMA %- : the lemma depends on an assumption.
+  %   LEMMA %/ : the lemma depends on an axiom.
+  % ----------------------------------------------------------------------------
+
+  % ----------------------------------------------------------------------------
+  % Lemmas dealing with the status of the <thread_ipc_in_progress> bit.
+  % ----------------------------------------------------------------------------
+
+  % The <thread_ipc_in_progress> bit of the <this> thread will not be changed 
+  % after sender_enqueue() was called.
+  sender_enqueue_ipc_in_progress_unchanged: LEMMA
+    FORALL (receiver:Thread_pointer,state_old: System_state):
+      LET state_new = sender_enqueue(receiver,state_old) IN
+        state_old`threads(state_old`this)`state`thread_ipc_in_progress =
+          state_new`threads(state_new`this)`state`thread_ipc_in_progress
+  
+  % The <thread_ipc_in_progress> bit of the <this> thread will not be changed 
+  % after kill() was called.
+  kill_ipc_in_progress_unchanged: LEMMA
+    FORALL (partner:Thread_pointer,state_old: System_state):
+      LET state_new = kill(partner,state_old) IN
+        state_old`threads(state_old`this)`state`thread_ipc_in_progress =
+          state_new`threads(state_new`this)`state`thread_ipc_in_progress
+
+  % The <thread_ipc_in_progress> bit of the <this> thread will not be changed 
+  % after receiver_ready() was called and the sender (the <this> thread) was 
+  % not equal to the receiver.
+  %
+  % NOTE: depends on the additional assumption that the sender is not equal
+  % to the receiver.
+  receiver_ready_ipc_in_progress_unchanged: LEMMA %-
+   FORALL(sender:Thread_pointer,receiver:Thread_pointer,state_old:System_state):
+     LET state_new = receiver_ready(state_old`this,receiver,state_old) IN
+       NOT state_old`this = receiver IMPLIES
+         state_old`threads(state_old`this)`state`thread_ipc_in_progress =
+           state_new`threads(state_new`this)`state`thread_ipc_in_progress
+
+  % When no timeouts are allowed, the <thread_ipc_in_progress> bit of the
+  % <this> thread will not be changed after calling preemption_point_actions().
+  preemption_point_actions_no_timeout_ipc_in_progress_unchanged: LEMMA
+    FORALL (actions: Preemption_actions, partner: Thread_pointer, 
+            state_old: System_state):
+      LET state_new = preemption_point_actions(actions,partner,false,state_old) IN
+        state_old`threads(state_old`this)`state`thread_ipc_in_progress =
+          state_new`threads(state_new`this)`state`thread_ipc_in_progress
+
+  % When no timeouts are allowed, the <thread_ipc_in_progress> bit of the
+  % <this> thread will not be changed after calling preemption_point().
+  preemption_point_no_timeout_ipc_in_progress_unchanged: LEMMA
+    FORALL (partner:Thread_pointer,state_old: System_state):
+      LET state_new = preemption_point(partner,false,state_old) IN
+        state_old`threads(state_old`this)`state`thread_ipc_in_progress =
+          state_new`threads(state_new`this)`state`thread_ipc_in_progress
+
+  % When no timeout has occured, the <thread_ipc_in_progress> bit of the
+  % <this> thread will not be changed after calling preemption_point_actions().
+  preemption_point_actions_no_timeout_ipc_in_progress_unchanged2: LEMMA
+    FORALL (actions: Preemption_actions, partner: Thread_pointer,
+            allow_timeout: bool, state_old: System_state):
+      LET state_new = preemption_point_actions(actions,partner,
+                                               allow_timeout,state_old) IN
+        NOT state_old`timeout AND 
+        NOT state_new`timeout IMPLIES
+          state_old`threads(state_old`this)`state`thread_ipc_in_progress =
+            state_new`threads(state_new`this)`state`thread_ipc_in_progress
+
+  % When no timeout has occured, the <thread_ipc_in_progress> bit of the
+  % <this> thread will not be changed after calling preemption_point().
+  preemption_point_no_timeout_ipc_in_progress_unchanged2: LEMMA
+    FORALL (partner:Thread_pointer,allow_timeout:bool,state_old: System_state):
+      LET state_new = preemption_point(partner,allow_timeout,state_old) IN
+        NOT state_old`timeout AND 
+        NOT state_new`timeout IMPLIES
+          state_old`threads(state_old`this)`state`thread_ipc_in_progress =
+            state_new`threads(state_new`this)`state`thread_ipc_in_progress
+  
+  % When the <thread_ipc_in_progress_bit> of the <this> thread is initially 
+  % not set, after calling preemption_point_actions() it will still be unset.
+  preemption_point_actions_not_thread_ipc_in_progress: LEMMA
+    FORALL (actions: Preemption_actions, partner: Thread_pointer,
+            allow_timeout: bool, state_old: System_state):
+      LET state_new = preemption_point_actions(actions, partner,
+                                               allow_timeout,state_old) IN
+        NOT state_old`threads(state_old`this)`state`thread_ipc_in_progress
+        IMPLIES
+          NOT state_new`threads(state_new`this)`state`thread_ipc_in_progress
+
+  % When the <thread_ipc_in_progress_bit> of the <this> thread is initially
+  % not set, after calling preemption_point() it will still be unset.
+  preemption_point_not_thread_ipc_in_progress: LEMMA
+    FORALL (partner:Thread_pointer,allow_timeout:bool,state_old: System_state):
+      LET state_new = preemption_point(partner,allow_timeout,state_old) IN
+        NOT state_old`threads(state_old`this)`state`thread_ipc_in_progress
+        IMPLIES
+          NOT state_new`threads(state_new`this)`state`thread_ipc_in_progress
+
+  % When the preemption_point_actions() function has set the timeout to true, 
+  % then that implies that the <thread_ipc_in_progress> bit of the <this> 
+  % thread is unset.
+  preemption_point_actions_timeout_not_thread_ipc_in_progress: LEMMA
+    FORALL (actions: Preemption_actions, partner: Thread_pointer,
+            allow_timeout: bool, state_old: System_state):
+      LET state_new = preemption_point_actions(actions, partner,
+                                               allow_timeout,state_old) IN
+        NOT state_old`timeout AND 
+        state_new`timeout IMPLIES 
+          NOT state_new`threads(state_new`this)`state`thread_ipc_in_progress
+
+  % When the preemption_point() function has set the timeout to true, then that
+  % implies that the <thread_ipc_in_progress> bit of the <this> thread is unset.
+  preemption_point_timeout_not_thread_ipc_in_progress: LEMMA
+    FORALL (partner:Thread_pointer,allow_timeout:bool,state_old: System_state):
+      LET state_new = preemption_point(partner,allow_timeout,state_old) IN
+        NOT state_old`timeout AND 
+        state_new`timeout IMPLIES 
+          NOT state_new`threads(state_new`this)`state`thread_ipc_in_progress
+
+  % ----------------------------------------------------------------------------
+  % Lemmas which involve the status of the <thread_transfer_in_progress> bit.
+  % ----------------------------------------------------------------------------
+
+  % When the <thread_transfer_in_progress> bit of the <this> thread is not set,
+  % that implies that the partner and the <this> thread are not engaged in IPC.
+  %
+  % NOTE: unfortunately this is still an axiom, it should be a lemma.
+  not_transfer_in_progress_not_in_ipc: AXIOM
+    FORALL (partner:Thread_pointer,state_old:System_state):
+      NOT state_old`threads(state_old`this)`state`thread_transfer_in_progress
+      IMPLIES 
+        NOT in_ipc(state_old`this,partner,state_old)
+
+  % ----------------------------------------------------------------------------
+  % Lemmas which involve the status of the <thread_polling> bit.
+  % ----------------------------------------------------------------------------
+ 
+  % The <thread_polling> bit is not set when sender_ok() returns true.
+  %
+  % NOTE: unfortunately we need this axiom because of a bug in the code. 
+  % Should the bug be fixed, than this axiom can be removed.
+  sender_ok_not_polling: AXIOM
+    FORALL (partner: Thread_pointer, state_old: System_state):
+      sender_ok(state_old`this, partner, state_old) IMPLIES
+        NOT state_old`threads(state_old`this)`state`thread_polling
+
+  % The <thread_polling> bit of the <this> thread is not modified by the kill()
+  % function.
+  kill_polling_unchanged: LEMMA
+    FORALL (partner:Thread_pointer,state_old:System_state):
+      LET state_new = kill(partner,state_old) IN
+        state_old`threads(state_old`this)`state`thread_polling =
+          state_new`threads(state_new`this)`state`thread_polling
+
+  % The <thread_polling> bit of the <this> thread is not modified by the
+  % timeout() function.
+  timeout_polling_unchanged: LEMMA
+    FORALL (state_old:System_state):
+      LET state_new = timeout(state_old`this,state_old) IN
+        state_old`threads(state_old`this)`state`thread_polling =
+          state_new`threads(state_new`this)`state`thread_polling
+
+  % The <thread_polling> bit of the <this> thread is not modified by the
+  % receiver_ready() function.
+  %
+  % NOTE: depends on the additional assumption that the sender is not equal
+  % to the receiver.
+  receiver_ready_polling_unchanged: LEMMA %-
+    FORALL (partner: Thread_pointer, state_old: System_state):
+      LET state_new = receiver_ready(state_old`this, partner, state_old) IN
+        NOT state_old`this = partner IMPLIES
+         state_old`threads(state_old`this)`state`thread_polling =
+          state_new`threads(state_new`this)`state`thread_polling 
+
+  % The <thread_polling> bit of the <this> thread is not modified by the
+  % preemption_point_actions() function.
+  preemption_point_actions_polling_unchanged: LEMMA
+    FORALL (actions: Preemption_actions, partner: Thread_pointer,
+            allow_timeout: bool, state_old: System_state):
+      LET state_new = preemption_point_actions(actions,partner,
+                                               allow_timeout,state_old) IN
+        state_old`threads(state_old`this)`state`thread_polling =
+          state_new`threads(state_new`this)`state`thread_polling
+
+  % The <thread_polling> bit of the <this> thread is not modified by the
+  % preemption_point() function.
+  preemption_point_polling_unchanged: LEMMA
+    FORALL (partner:Thread_pointer,allow_timeout:bool,state_old:System_state):
+      LET state_new = preemption_point(partner,allow_timeout,state_old) IN
+        state_old`threads(state_old`this)`state`thread_polling =
+          state_new`threads(state_new`this)`state`thread_polling
+
+  % After calling abort_send(), the <this> thread's <thread_polling> bit will
+  % always be unset.
+  abort_send_not_polling: LEMMA
+    FORALL (partner: Thread_pointer,state_old: System_state):
+      LET state_new = abort_send(partner,state_old) IN
+        NOT state_new`threads(state_new`this)`state`thread_polling
+
+  % After calling do_send_wait_finish(), the <this> thread's <thread_polling> 
+  % bit will always be unset.
+  do_send_wait_finish_not_polling: LEMMA
+    FORALL (partner: Thread_pointer,state_old: System_state):
+      LET state_new = do_send_wait_finish(partner,state_old) IN
+        NOT state_new`threads(state_new`this)`state`thread_polling 
+
+  % After calling do_send_wait_loop(), the <this> thread's <thread_polling> bit
+  % will always be unset.
+  do_send_wait_loop_not_polling: LEMMA
+    FORALL (partner: Thread_pointer,state_old: System_state):
+      LET state_new = do_send_wait_loop(partner,state_old) IN
+        NOT state_new`threads(state_new`this)`state`thread_polling 
+
+  % After calling do_send_wait(), the <this> thread's <thread_polling> bit will
+  % always be unset.
+  %
+  % NOTE: depends on the [sender_ok_not_polling] axiom.
+  do_send_wait_not_polling: LEMMA %/
+    FORALL (partner: Thread_pointer,state_old: System_state):
+      LET state_new = do_send_wait(partner,state_old) IN
+        NOT state_new`threads(state_new`this)`state`thread_polling 
+
+  % If no error has occured when calling try_handshake_receiver(), the
+  % <thread_polling> of the <this> thread will always be unset.
+  %
+  % NOTE: depends on the additional assumption that initially the 
+  % <thread_polling> bit of the <this> thread is not set.
+  try_handshake_receiver_no_error_not_polling: LEMMA %-
+    FORALL (partner: Thread_pointer,state_old: System_state):
+      LET state_new = try_handshake_receiver(partner,state_old) IN
+        NOT state_old`error AND 
+        NOT state_new`error AND
+        NOT state_old`threads(state_old`this)`state`thread_polling IMPLIES
+          NOT state_new`threads(state_new`this)`state`thread_polling
+  
+  % If we assume that initially the <this> thread's <thread_polling> bit is not
+  % set, it will still be unset after calling try_handshake_receiver().
+  %
+  % NOTE: depends on the additional assumption that initially the 
+  % <thread_polling> bit of the <this> thread is not set.
+  try_handshake_receiver_not_polling: LEMMA %-
+    FORALL (partner: Thread_pointer,state_old: System_state):
+      LET state_new = try_handshake_receiver(partner,state_old) IN
+        NOT state_old`error AND        
+        NOT state_old`threads(state_old`this)`state`thread_polling IMPLIES
+          NOT state_new`threads(state_new`this)`state`thread_polling
+
+  % If we assume that initially the <this> thread's <thread_polling> bit is not
+  % set, it will still be unset after calling do_ipc_send_part().
+  %
+  % NOTE: depends on the additional assumption that initially the 
+  % <thread_polling> bit of the <this> thread is not set.
+  do_ipc_send_part_not_polling: LEMMA %-
+    FORALL (partner: Thread_pointer,have_receive: bool,state_old: System_state):
+      LET state_new = do_ipc_send_part(partner,have_receive,state_old) IN
+        NOT state_old`error AND       
+        NOT state_old`threads(state_old`this)`state`thread_polling IMPLIES
+          NOT state_new`threads(state_new`this)`state`thread_polling
+
+  % If we assume that initially, the <this> thread's <thread_polling> bit is
+  % not set, it will still be unset after calling sys_ipc(). 
+  %
+  % NOTE: depends on the additional assumption that initially the 
+  % <thread_polling> bit of the <this> thread is not set.
+  %
+  % NOTE: basically we have proved here that the <thread_polling> bit being
+  % unset is an invariant.
+  sys_ipc_not_polling: LEMMA %-
+    FORALL (have_send: bool, partner: Thread_pointer, have_receive: bool,
+            sender: Thread_pointer, state_old: System_state):
+      % Engage in IPC with the supplied parameters.
+      LET state_new = sys_ipc(have_send,partner,
+                              have_receive,sender,state_old) IN        
+        NOT state_old`threads(state_old`this)`state`thread_polling IMPLIES
+          NOT state_new`threads(state_new`this)`state`thread_polling
+
+END fiasco_state

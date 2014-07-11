@@ -1,0 +1,128 @@
+\hypertarget{c++_receiver}{\chapter{C++: receiver.cpp}}
+\lstset{language=C++}
+\begin{lstlisting}
+//----------------------------------------------------------------------------
+// LEGEND:
+//   //% : comments added by us.
+//   //# : a line that has not been modelled.
+//   //! : a line that has been added by us.
+//----------------------------------------------------------------------------
+
+/** IPC partner (sender).
+    @return sender of ongoing or previous IPC operation
+ */
+PROTECTED inline
+Sender*
+Receiver::partner() const
+{
+  return _partner;
+}
+
+// Interface for senders
+
+/** Head of sender list.
+    @return a reference to the receiver's list of senders
+ */
+PUBLIC inline
+Sender**
+Receiver::sender_list()
+{
+  //% We have created a simplified version of the sender list in our model,
+  //% therefore the actual implementation below is not directly but 
+  //% indirectly reflected in our model.
+  return &_sender_first;
+}
+
+// MANIPULATORS
+
+/** Initiates a receiving IPC and updates the ipc partner.
+    @param sender the sender that wants to establish an IPC handshake
+ */
+PUBLIC inline NEEDS [Receiver::set_partner, 
+		     Receiver::rcv_regs, 
+		     Receiver::clear_pagein_request,
+		     "entry_frame.h", "sender.h", "l4_types.h"]
+void
+Receiver::ipc_init (Sender* sender)
+{
+  set_partner (sender);                                                    
+  rcv_regs()->rcv_src (sender->id());                                      //#
+  state_add_dirty(Thread_transfer_in_progress);
+}
+
+PROTECTED inline
+ void Receiver::prepare_receive_dirty(Sender *partner,
+                             Sys_ipc_frame *regs)
+{
+  // cpu lock required, or weird things will happen
+  assert(cpu_lock.test());                                                 //#
+
+  set_rcv_regs (regs);  // message should be poked in here                 //#
+  set_partner (partner);                                                   
+
+  state_change_dirty(~(Thread_ipc_sending_mask|Thread_transfer_in_progress),
+                     Thread_receiving | Thread_ipc_in_progress);
+}
+
+PUBLIC inline
+bool
+Receiver::in_ipc(Sender *sender)
+{
+  Mword ipc_state = (state() & (Thread_ipc_in_progress
+                               | Thread_cancel
+                               | Thread_transfer_in_progress));
+
+  if(EXPECT_TRUE
+     ((ipc_state == (Thread_transfer_in_progress | Thread_ipc_in_progress))
+      &&  _partner == sender))
+    return true;
+
+  return false;
+}
+
+/** Set the IPC partner (sender).
+    @param partner IPC partner
+ */
+PROTECTED inline 
+void
+Receiver::set_partner(Sender* partner)
+{
+  _partner = partner;
+}
+
+/** Return whether the receiver is ready to accept a message from the
+    given sender.
+    @param sender thread that wants to send a message to this receiver
+    @return true if receiver is in correct state to accept a message 
+                 right now (open wait, or closed wait and waiting for sender).
+ */
+IMPLEMENT inline NEEDS["std_macros.h", "thread_state.h", Receiver::partner]
+bool
+Receiver::sender_ok (const Sender *sender) const
+{
+  unsigned ipc_state = state() & (Thread_receiving |
+                                  //                 Thread_send_in_progress |
+                                  Thread_ipc_in_progress);
+
+  // If Thread_send_in_progress is still set, we're still in the send phase
+  if (EXPECT_FALSE (ipc_state != (Thread_receiving | Thread_ipc_in_progress)))
+    return false;
+
+  // Check open wait; test if this sender is really the first in queue
+  if (EXPECT_TRUE(!partner()
+                  && (!_sender_first || sender == _sender_first))) 
+    {
+      assert(!(state() & Thread_polling));                                 //!
+      return true;
+    }
+
+  // Check closed wait; test if this sender is really who we specified
+  if (EXPECT_TRUE (sender == partner()))
+    {
+      assert(!(state() & Thread_polling));                                 //!
+      return true;
+    }
+
+  return false;
+}
+\end{lstlisting}

@@ -1,0 +1,110 @@
+% The following substitutions are from the file:
+%   /usr/local/pvs-4.0/pvs-tex.sub
+\def\setsotherremovetwofn#1#2{{(#2 \setminus \{#1\})}}% How to print function sets.remove with arity (2)
+\def\setsotheraddtwofn#1#2{{(#2 \cup \{#1\})}}% How to print function sets.add with arity (2)
+\def\setsotherdifferencetwofn#1#2{{(#1 \setminus #2)}}% How to print function sets.difference with arity (2)
+\def\setsothercomplementonefn#1{{\overline{#1}}}% How to print function sets.complement with arity (1)
+\def\setsotherintersectiontwofn#1#2{{(#1 \cap #2)}}% How to print function sets.intersection with arity (2)
+\def\setsotheruniontwofn#1#2{{(#1 \cup #2)}}% How to print function sets.union with arity (2)
+\def\setsotherstrictunderscoresubsetothertwofn#1#2{{(#1 \subset #2)}}% How to print function sets.strict_subset? with arity (2)
+\def\setsothersubsetothertwofn#1#2{{(#1 \subseteq #2)}}% How to print function sets.subset? with arity (2)
+\def\setsothermembertwofn#1#2{{(#1 \in #2)}}% How to print function sets.member with arity (2)
+\def\opohtwofn#1#2{{#1\circ#2}}% How to print function O with arity (2)
+\def\opdividetwofn#1#2{{#1/#2}}% How to print function / with arity (2)
+\def\optimestwofn#1#2{{#1\times#2}}% How to print function * with arity (2)
+\def\opdifferenceonefn#1{{-#1}}% How to print function - with arity (1)
+\def\opdifferencetwofn#1#2{{#1-#2}}% How to print function - with arity (2)
+\def\opplustwofn#1#2{{#1+#2}}% How to print function + with arity (2)
+As a short example of creating a proof in PVS, we will prove that the square of any odd number is also an odd number. This corresponds to the following lemma in PVS:\emptyline
+
+\pvsid{odd\_square\_is\_odd}: \pvskey{LEMMA}
+    \(\forall\) \pvsid{(}\pvsid{number}: \pvsid{int}\pvsid{)}: \pvsid{odd?}\pvsid{(}\pvsid{number}\pvsid{)} \(\implies\) \pvsid{odd?}\pvsid{(}\(\optimestwofn{\pvsid{number}}{\pvsid{number}}\)\pvsid{)}\vspace*{\pvsdeclspacing}\emptyline
+
+In this lemma, we use {\pvsid{odd?}}, which is only true if the supplied argument is an odd number in PVS (the definition of odd? can be found in the PVS prelude). When we start proving this lemma, we are initially presented with the following sequent:\emptyline
+
+\begin{tabular}{|cl}
+\strut\\\hline
+$\{\mbox{\rm 1}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\(\forall\) \pvsid{(}\pvsid{number}: \pvsid{int}\pvsid{)}: \pvsid{odd?}\pvsid{(}\pvsid{number}\pvsid{)} \(\implies\) \pvsid{odd?}\pvsid{(}\(\optimestwofn{\pvsid{number}}{\pvsid{number}}\)\pvsid{)}\end{alltt}}\end{minipage}\\
+\end{tabular}
+
+\vspace{0.1in}
+
+As can be seen, we now have one consequent (the formula numbered 1, appearing below the line) that corresponds to the statement we want to prove. Currently, this consequent deals with \textit{any} possible number (referred to as a universal quantifier), but we want to limit it to a single instance (or constant) for easier proof creation. To replace the universal quantifier with a constant, we issue the \pvscmt{(skolem!)} command.\emptyline
+
+\begin{tabular}{|cl}
+\strut\\\hline
+$\{\mbox{\rm 1}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\pvsid{odd?}\pvsid{(}\(\pvsid{number}'\)\pvsid{)} \(\implies\) \pvsid{odd?}\pvsid{(}\(\optimestwofn{\pvsid{number}'}{\pvsid{number}'}\)\pvsid{)}\end{alltt}}\end{minipage}\\
+\end{tabular}
+
+\vspace{0.1in}
+
+The result is now that the universal quantifier has been replaced by a constant. In the rest of our proof, we will use this constant.\emptyline
+
+For our proof, we need an antecedent stating that {{\pvsid{number}\('\)}} is an odd number. At the moment, this assumption is still contained in the formula in consequent 1. To remedy this, we apply the \pvscmt{(flatten)} command.\emptyline
+
+\begin{tabular}{|cl}
+$\{\mbox{\rm -1}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\pvsid{odd?}\pvsid{(}\(\pvsid{number}'\)\pvsid{)}\end{alltt}}\end{minipage}\\\hline
+$\{\mbox{\rm 1}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\pvsid{odd?}\pvsid{(}\(\optimestwofn{\pvsid{number}'}{\pvsid{number}'}\)\pvsid{)}\end{alltt}}\end{minipage}\\
+\end{tabular}
+
+\vspace{0.1in}
+
+The result of the \pvscmt{(flatten)} command is that the odd number assumption has been removed from consequent 1 and added as antecedent -1.\emptyline
+
+To be able to continue our proof, we have to look at how odd numbers are defined in PVS. To do so, we expand the definition of \pvsid{odd?} by issuing \pvscmt{(expand "odd?")}.\emptyline
+
+\begin{tabular}{|cl}
+$\{\mbox{\rm -1}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\(\exists\) \(j\): \(\pvsid{number}'\) \(=\) \(\opplustwofn{1}{\optimestwofn{2}{j}}\)\end{alltt}}\end{minipage}\\\hline
+$\{\mbox{\rm 1}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\(\exists\) \(j\): \(\optimestwofn{\pvsid{number}'}{\pvsid{number}'}\) \(=\) \(\opplustwofn{1}{\optimestwofn{2}{j}}\)\end{alltt}}\end{minipage}\\
+\end{tabular}
+
+\vspace{0.1in}
+
+Once again, quantifiers have been introduced into our proof. As we want to use the constant {{\pvsid{number}\('\)}} in consequent 1, we have to make sure there are no quantifiers in antecent -1 (in which the constant {{\pvsid{number}\('\)}} is defined). This is done by issuing the \pvscmt{(skolem!)} command again.\emptyline
+
+\begin{tabular}{|cl}
+$\{\mbox{\rm -1}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\(\pvsid{number}'\) \(=\) \(\opplustwofn{1}{\optimestwofn{2}{j'}}\)\end{alltt}}\end{minipage}\\\hline
+$\{\mbox{\rm 1}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\(\exists\) \(j\): \(\optimestwofn{\pvsid{number}'}{\pvsid{number}'}\) \(=\) \(\opplustwofn{1}{\optimestwofn{2}{j}}\)\end{alltt}}\end{minipage}\\
+\end{tabular}
+
+\vspace{0.1in}
+
+The result is that the {{\pvsid{number}\('\)}} constant is now removed of its quantifiers, which means that we can use it in consequent 1.\emptyline
+
+At this point, we have to decide how we can use the odd number constant in antecedent -1 to prove consequent 1. For this, it is best to look at how one would verify this statement mathematically. If we look at consequent 1, we want to find a number $j$ such that:
+
+\begin{equation}
+number^\prime * number^\prime = 1 + 2 * j
+\end{equation}
+
+If we could find such as number $j$, $number^\prime * number^\prime$ would conform to the definition of an odd number (which is what we wanted to prove). We can find this number $j$ by rewriting the definition of {{\pvsid{number}\('\)}}:
+
+\begin{equation}
+\begin{split}
+number^\prime & = 1 + 2 * j^\prime\\
+number^\prime * number^\prime & = (1 + 2 * j^\prime) * (1 + 2 * j^\prime)\\
+                & = 1 + 4j^\prime + {4j^\prime}^2\\
+                & = 1 + 2 * (2j^\prime + {2j^\prime}^2)
+\end{split}
+\end{equation}
+
+This simple rewrite has provided us with the value we can use for $j$:
+
+\begin{equation}
+j = 2j^\prime + {2j^\prime}^2
+\end{equation}
+
+Returning to our proof, we can use the value of $j$ we found in our proof by instantiating consequent 1. We can now initialize the quantifier in consequent 1 with the value found: \(\opplustwofn{\optimestwofn{2}{j'}}{\optimestwofn{\optimestwofn{2}{j'}}{j'}}\):\emptyline
+
+\begin{tabular}{|cl}
+$\{\mbox{\rm -1}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\(\pvsid{number}'\) \(=\) \(\opplustwofn{1}{\optimestwofn{2}{j'}}\)\end{alltt}}\end{minipage}\\\hline
+$\{\mbox{\rm 1}\}$ &\begin{minipage}[t]{5.5in}{\begin{alltt}\(\optimestwofn{\pvsid{number}'}{\pvsid{number}'}\) \(=\) \(\opplustwofn{1}{\optimestwofn{2}{\opplustwofn{\optimestwofn{2}{j'}}{\optimestwofn{\optimestwofn{2}{j'}}{j'}}}}\)\end{alltt}}\end{minipage}\\
+\end{tabular}
+
+\vspace{0.1in}
+
+Everything is now in place to finish the proof, which can be done by applying \pvscmt{(assert!)}.\emptyline
+
+This completes the proof of {\tt odd\_square\_is\_odd}.\emptyline
+
+Q.E.D.

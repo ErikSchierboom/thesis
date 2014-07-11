@@ -1,0 +1,95 @@
+\documentclass{report}
+\usepackage{epigraph,graphicx,titling,listings,fullpage,supertabular,alltt,latexsym,thesis_pvs}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage[margin=1.1in]{geometry}
+\definecolor{citecolor}{rgb}{0.0,0.6,0.8}
+\usepackage[colorlinks,hyperindex,plainpages=false,backref,citecolor=citecolor]{hyperref}
+\usepackage[titletoc]{appendix}
+
+% Add a command to enable multi-line comments
+\newcommand{\comment}[1]{}
+
+% Add a command to enable multi-line comments
+\newcommand{\emptypage}{\newpage \mbox{} \newpage}
+
+% Add a command to easily add an empty line after a paragraph
+\newcommand{\emptyline}{\vspace{\baselineskip}}
+
+% Define new commands to be used on the title page
+\newcommand{\doctype}[1]{\gdef\doT{#1}}
+\newcommand{\doT}{}
+\newcommand{\institution}[1]{\gdef\inS{#1}}
+\newcommand{\inS}{}
+\newcommand{\email}[1]{\gdef\emA{#1}}
+\newcommand{\emA}{}
+\newcommand{\supervisors}[1]{\gdef\suP{#1}}
+\newcommand{\suP}{}
+\newcommand{\thesisNumber}[1]{\gdef\tsN{#1}}
+\newcommand{\tsN}{}
+
+% Define what should be displayed after the title
+\renewcommand{\maketitlehookb}{	
+	\hrule 
+  \begin{center}  
+  \normalfont\Large\scshape \doT \par  
+  \normalfont\small Number \tsN \par
+  \end{center}  
+  \vskip 1em
+}
+
+% Define what should be displayed after the author
+\renewcommand{\maketitlehookc}{
+	\vskip 2.0em
+	\begin{center}
+	at \par \vspace{4pt} \large \inS \par 
+ 	\end{center}  
+}
+
+% Set the title page layout specification
+\pretitle{ \begin{center} \Huge\bfseries}
+\posttitle{\par \end{center} }
+\preauthor{\begin{center} by \par \vspace{4pt} \Large\bfseries}
+\postauthor{\\ \normalfont\normalsize $<$\emA$>$ \par \end{center}}
+\predate{ \vfill 
+	\begin{flushleft}
+	supervised by \vspace{4pt} \\ 
+	\large \suP
+	\vspace{16pt} \\
+	\large 
+ }
+\postdate{\end{flushleft}\par}
+
+% Set custom epigraph settings
+\newenvironment{qitemstyle}{\begin{flushright}}{\vspace{8pt}\end{flushright}}
+\renewcommand{\sourceflush}{qitemstyle}
+\renewcommand{\epigraphflush}{flushleft}
+\renewcommand{\beforeepigraphskip}{0em}
+\renewcommand{\afterepigraphskip}{2em}
+\setlength{\epigraphwidth}{.6\textwidth}
+
+% Set the main thesis information which will be displayed
+% on the title page
+\author{E.G.H. Schierboom}
+\email{eschierb@sci.kun.nl}
+\title{Verification of Fiasco's IPC implementation}
+\doctype{Master thesis}
+\institution{Radboud Universiteit Nijmegen\\ Computing Science Department\\ Toernooiveld 1\\ 6525 ED Nijmegen\\ Holland}
+\supervisors{dr. M.C.J.D. van Eekelen \\ dr. J.E.W. Smetsers \\ dr. W. Tews}
+\thesisNumber{560}
+\date{\today}
+
+% Set the paragraph indentation
+\parindent=0in
+
+% Set options for the source code listings
+\definecolor{sourcebgcolor}{rgb}{0.90,0.90,0.90}
+\lstdefinelanguage{PVS}
+	{morekeywords={theory,begin,end,importing,exporting,type,all,with,let,in,if,else,elsif,endif,then,lemma,and,or,not,implies,axiom,forall},
+	 sensitive=false,
+	 morecomment=[l]{\%},
+	 morestring=[b]",
+	}
+\lstloadlanguages{C++,PVS}
+\lstset{backgroundcolor=\color{sourcebgcolor},basicstyle=\footnotesize,captionpos=b}
+\renewcommand*\lstlistingname{Source}
+\renewcommand*\lstlistlistingname{List of Sources}

@@ -1,0 +1,803 @@
+% -----------------------------------------------------------------------------
+% The Fiasco IPC implementation is basically a set of inter-related functions.
+% Here we define our PVS representation of those functions. Although most 
+% functions can be mapped almost one-on-one to their C++ counterparts, some
+% functions are actually simplified versions, which describe the behaviour of
+% its Fiasco implementations at a more abstract level. There have also been 
+% functions added that are not in the C++ source, in all cases this has been 
+% done to split up larger functions into more compact parts, the functionality 
+% of course remains intact.
+% -----------------------------------------------------------------------------
+fiasco_functions : THEORY
+EXPORTING ALL WITH ALL
+BEGIN
+  % ---------------------------------------------------------------------------
+  % Import the theories which will be used in our lemmas.
+  % ---------------------------------------------------------------------------
+  IMPORTING fiasco_types
+  IMPORTING fiasco_states
+
+  % ---------------------------------------------------------------------------
+  % Functional specifications which will describe IPC in Fiasco.
+  % ---------------------------------------------------------------------------  
+
+  % Add bits to the state of a thread, all bits set in the <bits> thread state
+  % will be set in the state of the thread pointed to by <tp>.
+  state_add_dirty(tp: Thread_pointer, bits: Thread_state, 
+                  state_old: System_state): System_state =
+    LET
+      % Determine which state to work with.
+      state = state_old`threads(tp)`state,
+      state =  state WITH 
+        [
+         thread_ready     := state`thread_ready     OR bits`thread_ready,
+         thread_cancel    := state`thread_cancel    OR bits`thread_cancel,
+         thread_dead      := state`thread_dead      OR bits`thread_dead,
+         thread_busy      := state`thread_busy      OR bits`thread_busy,
+         thread_invalid   := state`thread_invalid   OR bits`thread_invalid,
+         thread_polling   := state`thread_polling   OR bits`thread_polling,
+         thread_receiving := state`thread_receiving OR bits`thread_receiving,
+         thread_ipc_in_progress      := state`thread_ipc_in_progress OR
+                                        bits`thread_ipc_in_progress,
+         thread_send_in_progress     := state`thread_send_in_progress OR
+                                        bits`thread_send_in_progress,
+         thread_transfer_in_progress := state`thread_transfer_in_progress OR
+                                      bits`thread_transfer_in_progress
+        ]
+    IN
+      state_old WITH [(threads)(tp)`state := state]
+
+  % Delete bits from the state of a thread, all bits set in the <bits> thread 
+  % state will be unset in the state of the thread pointed to by <tp>.
+  state_del_dirty(tp: Thread_pointer, bits: Thread_state, 
+                  state_old: System_state): System_state =
+    LET
+      % Determine which state to work with.
+      state = state_old`threads(tp)`state,
+      state = state WITH 
+      [
+       thread_ready     := state`thread_ready     AND NOT bits`thread_ready,
+       thread_cancel    := state`thread_cancel    AND NOT bits`thread_cancel,
+       thread_dead      := state`thread_dead      AND NOT bits`thread_dead,
+       thread_busy      := state`thread_busy      AND NOT bits`thread_busy,
+       thread_invalid   := state`thread_invalid   AND NOT bits`thread_invalid,
+       thread_polling   := state`thread_polling   AND NOT bits`thread_polling,
+       thread_receiving := state`thread_receiving AND NOT bits`thread_receiving,
+       thread_ipc_in_progress      := state`thread_ipc_in_progress AND NOT
+                                      bits`thread_ipc_in_progress,
+       thread_send_in_progress     := state`thread_send_in_progress AND NOT
+                                      bits`thread_send_in_progress,
+       thread_transfer_in_progress := state`thread_transfer_in_progress AND NOT
+                                      bits`thread_transfer_in_progress
+      ]
+    IN
+      state_old WITH [(threads)(tp)`state := state]
+
+  % Delete- and add bits to the state of the thread pointed to by <tp>; all bits
+  % not set in the <mask> thread state will first be unset and then all bits
+  % set in <bits> will be set.
+  state_change_dirty(tp: Thread_pointer, mask: Thread_state,
+                     bits: Thread_state,state_old: System_state): System_state =
+    LET
+      % Determine which state to work with.
+      state = state_old`threads(tp)`state,
+      state = state WITH 
+          [
+           thread_ready     := state`thread_ready     AND mask`thread_ready,
+           thread_cancel    := state`thread_cancel    AND mask`thread_cancel,
+           thread_dead      := state`thread_dead      AND mask`thread_dead,
+           thread_busy      := state`thread_busy      AND mask`thread_busy,
+           thread_invalid   := state`thread_invalid   AND mask`thread_invalid,
+           thread_polling   := state`thread_polling   AND mask`thread_polling,
+           thread_receiving := state`thread_receiving AND mask`thread_receiving,
+           thread_ipc_in_progress      := state`thread_ipc_in_progress AND
+                                          mask`thread_ipc_in_progress,
+           thread_send_in_progress     := state`thread_send_in_progress AND
+                                          mask`thread_send_in_progress,
+           thread_transfer_in_progress := state`thread_transfer_in_progress AND
+                                          mask`thread_transfer_in_progress
+          ],
+
+      state = state WITH 
+        [
+         thread_ready     := state`thread_ready     OR bits`thread_ready,
+         thread_cancel    := state`thread_cancel    OR bits`thread_cancel,
+         thread_dead      := state`thread_dead      OR bits`thread_dead,
+         thread_busy      := state`thread_busy      OR bits`thread_busy,
+         thread_invalid   := state`thread_invalid   OR bits`thread_invalid,
+         thread_polling   := state`thread_polling   OR bits`thread_polling,
+         thread_receiving := state`thread_receiving OR bits`thread_receiving,
+         thread_ipc_in_progress      := state`thread_ipc_in_progress OR
+                                        bits`thread_ipc_in_progress,
+         thread_send_in_progress     := state`thread_send_in_progress OR
+                                        bits`thread_send_in_progress,
+         thread_transfer_in_progress := state`thread_transfer_in_progress OR
+                                        bits`thread_transfer_in_progress
+        ]
+    IN
+      state_old WITH [(threads)(tp)`state := state]
+
+  % Delete bits from the state of a thread, all bits set in the <bits> thread 
+  % state will be unset in the state of the thread pointed to by <tp>.
+  %
+  % NOTE: in our model this function is just an interface for the 
+  % state_del_dirty() function. However, in Fiasco there is a real difference
+  % between the two functions as the dirty version assumes that the CPU lock
+  % is held, which allows for faster updating. As we have not modelled the CPU
+  % lock, the two functions are the same in our model. We have chosen to still
+  % include the state_del() function because it allows for a better reflection
+  % of the source code and the model might later be changed to allow CPU locks.
+  state_del(tp: Thread_pointer, bits: Thread_state, 
+            state_old: System_state): System_state =
+    state_del_dirty(tp,bits,state_old)
+
+  % Delete- and add bits to the state of the thread pointed to by <tp>; all bits
+  % not set in the <mask> thread state will first be unset and then all bits
+  % set in <bits> will be set.
+  %
+  % NOTE: here we have a similar situation to the one described in the notes of
+  % the state_del() function, please check its notes above for more information.
+  state_change(tp: Thread_pointer, mask: Thread_state, bits: Thread_state, 
+               state_old: System_state): System_state = 
+    state_change_dirty(tp,mask,bits,state_old)
+  
+  % Remove the thread lock on the partner thread by setting the thread lock
+  % owner to the zero thread.
+  clear_dirty(partner: Thread_pointer, state_old: System_state): System_state =
+    state_old WITH [(threads)(partner)`thread_lock := Zero_thread]
+
+  % Remove the thread lock on the partner thread by setting the thread lock
+  % owner to the zero thread.
+  %
+  % NOTE: although this specification is equal to that of clear_dirty(), once
+  % again this is due to our model being a simplified version of the source 
+  % code. In the source code, the clear_dirty() function possibly switches the
+  % execution context, whereas the clear_dirty_dont_switch() function obviously
+  % does not. As we do not model execution context switches, the result of the
+  % two functions is the same. We have still included both functions because of 
+  % the reasons also specified in the notes of the state_del() function.
+  clear_dirty_dont_switch(partner: Thread_pointer, 
+                          state_old: System_state): System_state =
+    state_old WITH [(threads)(partner)`thread_lock := Zero_thread]
+
+  % Set the thread lock of the partner thread to the <this> thread.
+  %
+  % NOTE: this is a typical function in which a lot of implementation details
+  % have been abstracted away. In the C++ implementation, the function first
+  % checks if another thread has locked the partner and if so, it enters a loop
+  % that waits for the lock to be released. The end result is always that the
+  % lock is acquired by the <this> thread so this lead to our simplified version.
+  lock_dirty(partner: Thread_pointer,state_old: System_state): System_state =
+    state_old WITH [(threads)(partner)`thread_lock := state_old`this]
+
+  % Indicates if a partner is ready for a sender.
+  sender_ok(sender: Thread_pointer, receiver: Thread_pointer,
+            state_old: System_state): bool =
+    % The receiver should at least be in a receiving IPC state.
+    IF NOT state_old`threads(receiver)`state`thread_receiving OR
+       NOT state_old`threads(receiver)`state`thread_ipc_in_progress
+    THEN
+      false
+    % Open wait: no partner should be specified and the sender should be the 
+    % first in the receiver's sender list.
+    ELSIF state_old`threads(receiver)`partner = Zero_thread AND
+          state_old`threads(receiver)`sender_list = First THEN 
+      true
+    % Closed wait: check if the sender is the same as the partner specified.
+    ELSIF sender = state_old`threads(receiver)`partner THEN
+      true
+    ELSE
+      false
+    ENDIF
+
+  % Set the partner of the receiver to the specified sender.
+  set_partner(sender: Thread_pointer, receiver: Thread_pointer,
+              state_old: System_state): System_state =
+    state_old WITH [(threads)(receiver)`partner := sender]
+  
+  % Initialize IPC between the sender and receiver.
+  ipc_init(sender: Thread_pointer, receiver: Thread_pointer,
+           state_old: System_state): System_state =
+    % Set the <thread_transfer_in_progress> bit on the receiver state.
+    LET 
+      % Set the partner.
+      state_temp = set_partner(sender,receiver,state_old),
+      bits = TS_empty WITH [thread_transfer_in_progress := true]
+    IN
+      state_add_dirty(receiver,bits,state_temp)
+
+  % Transfer a message between the sender and receiver.
+  %
+  % NOTE: this function completely ignores the actual copying of the message,
+  % we assume that the copying will always succeed. What's more, this function 
+  % does not do anything at all because we totally abstracted away the sending
+  % of the message.
+  transfer_msg(receiver: Thread_pointer,state_old: System_state): System_state =
+    state_old
+
+  % Indicates if the receiver is engaged in IPC with the sender.
+  in_ipc(sender: Thread_pointer, receiver: Thread_pointer, 
+         state_old: System_state): bool =
+    state_old`threads(receiver)`state`thread_transfer_in_progress AND
+    state_old`threads(receiver)`state`thread_ipc_in_progress AND NOT
+    state_old`threads(receiver)`state`thread_cancel AND 
+    state_old`threads(receiver)`partner = sender
+
+  % Wakeup the receiver, which ensures that the state is changed to reflect that
+  % it is no longer involved in IPC and is ready to continue with other tasks. 
+  wake_receiver(receiver:Thread_pointer, state_old:System_state): System_state =
+    % Define the mask and bits to change the state of the receiver.
+    LET mask = TS_full WITH [thread_busy := false,
+                             thread_receiving := false,
+                             thread_transfer_in_progress := false,
+                             thread_ipc_in_progress := false],
+        bits = TS_empty WITH [thread_ready := true]
+    IN
+      state_change_dirty(receiver,mask,bits,state_old)
+
+  % Return a (random) sender list status.
+  %
+  % NOTE: the function is defined without an implementation, that means that we 
+  % cannot predict the return value of the function. However, as it still is a
+  % function that means that equal input parameters result in the same return
+  % values. Therefore, to really achieve the randomness we are looking for we
+  % need to make sure that the input parameter never has the same value twice.
+  sender_list_status(n: nat): Sender_list_status
+
+  % Enqueue the <this> thread in the receiver's sender list.
+  sender_enqueue(receiver:Thread_pointer,state_old:System_state): System_state =
+    LET 
+      % Update the seed and get a random sender list status.
+      state_old = state_old WITH [seed := state_old`seed + 1],
+      status = sender_list_status(state_old`seed)
+    IN
+    % Check if the sender list is empty, if so the <this> thread will become
+    % the first item in the sender list and otherwise it will be set to an
+    % enqueued status (indicating that it is in the sender list but is not
+    % the first item).
+    IF status = Empty THEN
+      state_old WITH [(threads)(receiver)`sender_list := First]
+    ELSE
+      state_old WITH [(threads)(receiver)`sender_list := Enqueued]
+    ENDIF
+
+  % Dequeue the <this> thread from the receiver's sender list.
+  sender_dequeue(receiver:Thread_pointer,state_old:System_state): System_state =
+    state_old WITH [(threads)(receiver)`sender_list := Dequeued]
+
+  % Dequeue the <this> thread from the receiver's sender list.
+  sender_dequeue_head(receiver: Thread_pointer, 
+                      state_old: System_state): System_state =
+    state_old WITH [(threads)(receiver)`sender_list := Dequeued]
+
+  % Indicates if the sender is in the receiver's sender list.
+  in_sender_list(receiver: Thread_pointer, state_old: System_state): bool =
+    NOT state_old`threads(receiver)`sender_list = Dequeued 
+
+  % Prepare a thread for receiving a message from the specified sender.
+  prepare_receive_dirty(sender: Thread_pointer, receiver: Thread_pointer, 
+                        state_old: System_state): System_state =
+    LET
+      % Set the partner.
+      state_temp = set_partner(sender,receiver,state_old),
+
+      mask = TS_full WITH [thread_send_in_progress := false,
+                           thread_polling := false,
+                           thread_transfer_in_progress := false],
+      bits = TS_empty WITH [thread_receiving := true, 
+                            thread_ipc_in_progress := true]
+    IN
+      state_change_dirty(receiver,mask,bits,state_temp)
+       
+  % Kill the partner thread.
+  kill(partner: Thread_pointer, state_old: System_state): System_state =
+    % Both locked- and invalid threads cannot be killed
+    IF NOT state_old`threads(partner)`thread_lock = state_old`this AND 
+       NOT state_old`threads(partner)`state`thread_invalid
+    THEN
+      state_old WITH[(threads)(partner)`state`thread_dead := true]
+    ELSE
+      state_old
+    ENDIF
+
+  % Update the current thread's registers, which can be used to create a new
+  % thread out of an existing one. This results in the <thread_cancel> bit
+  % of the <this> thread being set, signifying that ongoing IPC should be
+  % cancelled.
+  sys_thread_ex_regs(tp: Thread_pointer,state_old: System_state): System_state =
+    state_old WITH [(threads)(tp)`state`thread_cancel := true]
+    
+  % An IPC timeout has occured, which means that the specified timeout time has
+  % passed. We simulate this by setting the <timeout> member to true.
+  timeout(tp: Thread_pointer, state_old: System_state): System_state =
+   LET
+     % Define the state changed by the timeout.
+     mask = TS_full WITH [thread_ipc_in_progress := false],
+     bits = TS_empty WITH [thread_ready := true]
+   IN
+     state_change(tp,mask,bits,state_old) WITH [timeout := true]
+
+  % Called by the receiver on a sender to determine if both are ready to engage
+  % in IPC.  
+  ipc_receiver_ready(sender: Thread_pointer, receiver: Thread_pointer,
+                     state_old: System_state): bool =
+    state_old`threads(sender)`state`thread_ipc_in_progress AND 
+    sender_ok(sender,receiver,state_old)
+
+  % In this function the side-effects of the ipc_receiver_ready() function are
+  % handled.
+  %
+  % NOTE: in the Fiasco source code the receiver calls the ipc_receiver_ready()
+  % function, which returns a boolean value indicating if the sender was ready
+  % for the receiver. However, this function also has side-effects if the 
+  % sender was indeed ready so we had to split up the function in one in which
+  % a boolean value was returned and one in which the side-effects are handled.
+  ipc_receiver_ready_change(sender: Thread_pointer, receiver: Thread_pointer,
+                            state_old: System_state): System_state =
+    LET
+      % Initialize IPC.
+      state_temp = ipc_init(sender,receiver,state_old),
+
+      % Set the sender to ready and indicate that the transfer is in progress.
+      bits = TS_empty WITH [thread_ready := true,
+                            thread_transfer_in_progress := true],
+      state_temp = state_add_dirty(sender,bits,state_temp),
+
+      % Remove the ready state from the receiver.
+      bits = TS_empty WITH [thread_ready := true]
+    IN
+      state_del_dirty(receiver,bits,state_temp)
+   
+  % This preemption action signifies a receiver becoming ready to receive a 
+  % message from a sender.
+  receiver_ready(sender: Thread_pointer, receiver: Thread_pointer,
+                 state_old: System_state): System_state = 
+    LET
+      state_old = 
+        % Check if the receiver has been initialized.
+        IF NOT state_old`receiver_initialized THEN 
+          % Prepare the receiver using a 'random' partner.
+          prepare_receive_dirty(Receiver_partner_thread,receiver,state_old)
+            WITH [(receiver_initialized) := true]
+        ELSE
+          state_old
+        ENDIF
+    IN
+    % Make sure the receiver is in the right state to receive from a sender.
+    IF state_old`threads(receiver)`state`thread_receiving AND
+       state_old`threads(receiver)`state`thread_ipc_in_progress AND NOT
+       state_old`threads(receiver)`state`thread_cancel
+    THEN
+      % Closed wait: check if the sender is the same as the partner specified.
+      IF sender = state_old`threads(receiver)`partner THEN
+        % Check if the sender meets the conditions of the receiver
+        IF in_sender_list(receiver,state_old) AND 
+           ipc_receiver_ready(sender,receiver,state_old)
+        THEN
+          % Apply the changes caused by the side-effects of the 
+          % ipc_receiver_ready() function.
+          ipc_receiver_ready_change(sender,receiver,state_old)
+        ELSE
+          state_old
+        ENDIF
+      % Open wait: no partner should be specified and the sender should be 
+      % the first item.
+      ELSE
+        % Check if the sender is not ready in which case it should be removed
+        % from the sender list.
+        IF NOT ipc_receiver_ready(sender,receiver,state_old) THEN
+          sender_dequeue_head(receiver,state_old)
+        ELSE
+          % Apply the changes caused by the side-effects of the
+          % ipc_receiver_ready() function.
+          ipc_receiver_ready_change(sender,receiver,state_old)
+        ENDIF
+      ENDIF    
+    ELSE
+      state_old
+    ENDIF
+
+  % Return a (random) preemption action.
+  %
+  % NOTE: the randomness achieved in the same way as described in the notes of
+  % the sender_list_status() function.
+  preemption_action(n: nat): Preemption_actions
+
+  % Execute a list of preemption point actions.
+  preemption_point_actions(actions: Preemption_actions, partner: Thread_pointer,
+                           allow_timeout: bool, 
+                           state_old: System_state): RECURSIVE System_state =
+    CASES actions OF
+      null: state_old,
+      cons(action,remaining_actions):
+      LET state_temp = 
+        % Check if a call was made to sys_thread_ex_regs().
+        IF action = Sys_thread_ex_regs THEN
+          sys_thread_ex_regs(state_old`this,state_old)
+        % Only allow a timeout to occur when specified, most of the time a 
+        % timeout cannot occur.
+        ELSIF action = Timeout AND allow_timeout THEN
+          timeout(state_old`this,state_old)
+        % Check if the partner is killed.
+        ELSIF action = Kill THEN
+          kill(partner,state_old)
+        % A receiver can only become ready when it is not equal to the sender,
+        % if so it would be waiting forever.
+        ELSIF action = Receiver_ready AND NOT state_old`this = partner THEN
+          receiver_ready(state_old`this,partner,state_old)
+        ELSE
+          state_old
+        ENDIF
+      IN
+      % Execute the remaining actions.
+      preemption_point_actions(remaining_actions,partner,allow_timeout,state_temp)
+    ENDCASES
+    MEASURE length(actions)
+
+  % Simulate a preemption point by ignoring the actual scheduling occuring and
+  % focus only on the effects that scheduling might have on the system state. 
+  % To achieve this, a list of random preemption actions is created, which are 
+  % then executed and each executed action updates the system state.
+  preemption_point(partner: Thread_pointer, allow_timeout: bool, 
+                   state_old: System_state): System_state =
+    LET 
+      % Increment the seed and use it to get a random list of preemption 
+      % actions.
+      state_old = state_old WITH [seed := state_old`seed + 1],
+      actions = preemption_action(state_old`seed)
+   IN
+      % Execute the preemption actions.
+      preemption_point_actions(actions,partner,allow_timeout,state_old)
+    
+  % Abort the IPC send operation.
+  abort_send(partner: Thread_pointer, state_old: System_state): System_state =
+    LET
+      % Unset the bits that indicate that the sender was busy in IPC.
+      bits = TS_empty WITH [thread_send_in_progress := true,
+                            thread_polling := true,
+                            thread_ipc_in_progress := true,
+                            thread_transfer_in_progress := true],
+      state_temp = state_del_dirty(state_old`this,bits,state_old),
+
+      state_temp = preemption_point(partner,false,state_temp),
+
+      state_temp =	
+        % Check if the sender needs to be dequeued from the sender list.
+        IF in_sender_list(partner,state_temp) THEN
+          sender_dequeue(partner,state_temp)
+        ELSE
+          state_temp
+        ENDIF,
+
+      state_temp = preemption_point(partner,true,state_temp)    
+    IN
+      % Remove the thread lock on the receiver.
+      clear_dirty(partner,state_temp) WITH [error := true]
+
+  % Handle the finishing part of the do_send_wait() function.
+  do_send_wait_finish(partner: Thread_pointer,
+                      state_old: System_state): System_state =
+    LET
+      state_temp = 
+        % If a timeout has hit at this point, it can be safely ignored as the
+        % handshake has already taken place. However, make sure that the
+        % <thread_ipc_in_progress> bit of the <this> thread is set once again 
+        % as the timeout will have unset it.
+        IF state_old`timeout THEN
+        LET
+          bits_add = TS_empty WITH [thread_ipc_in_progress := true]
+        IN
+          state_add_dirty(state_old`this,bits_add,state_old)
+        ELSE
+          state_old
+        ENDIF,
+    
+      % Add preemption points and dequeue the sender from the sender list.
+      state_temp = preemption_point(partner,false,state_temp),
+      state_temp = sender_dequeue(partner,state_temp),
+      state_temp = preemption_point(partner,false,state_temp),
+
+      % Remove the polling bit as the handshake has ended.
+      bits_del = TS_empty WITH [thread_polling := true],
+      state_temp = state_del_dirty(state_temp`this,bits_del,state_temp)
+    IN
+      % Check if IPC was cancelled.
+      IF state_temp`threads(state_temp`this)`state`thread_cancel THEN
+        % Check if the sender- and receiver are still engaged in IPC, if so the
+        % state of the receiver needs to be changed.
+        IF NOT in_ipc(state_temp`this,partner,state_temp) THEN
+          abort_send(partner,state_temp)
+        ELSE
+        LET 
+          mask = TS_full WITH [thread_ipc_in_progress := false],
+          bits = TS_empty WITH [thread_cancel := true, thread_ready := true],
+          state_temp = state_change_dirty(partner,mask,bits,state_temp)
+        IN  
+          abort_send(partner,state_temp)   
+        ENDIF
+      % Abort the send if the sender is not in IPC with the receiver or the
+      % receiver has been killed.
+      ELSIF NOT in_ipc(state_temp`this,partner,state_temp) OR 
+            state_temp`threads(partner)`state`thread_dead 
+      THEN
+        abort_send(partner,state_temp)
+      ELSE
+        % Assert that the sender is not engaged in IPC with the receiver and
+        % that the handshake bit is not set.
+        state_temp WITH [(assertions_held) := 
+                     state_temp`assertions_held AND
+        state_temp`threads(state_temp`this)`state`thread_ipc_in_progress AND NOT
+                     in_sender_list(partner,state_temp),
+                     error := false] 
+      ENDIF
+ 
+  % Handle the waiting loop part of the do_send_wait() function, which waits for
+  % the receiver to become ready for the sender.
+  do_send_wait_loop(partner: Thread_pointer,
+                    state_old: System_state): System_state =
+    LET
+      % Remove the thread lock on the partner as we have to give it a chance in
+      % the preemption point to get in the state in which it is ready to receive
+      % a message from the <this> thread. Afterwards acquire the thread lock
+      % again.
+      state_temp = clear_dirty(partner,state_old),
+      state_temp = preemption_point(partner,true,state_temp),
+      state_temp = lock_dirty(partner,state_temp)
+    IN
+    % Check if IPC was cancelled or the handshake bit was set, if so finish the
+    % do_send_wait() call.
+    IF state_temp`threads(state_temp`this)`state`thread_cancel OR 
+       state_temp`threads(state_temp`this)`state`thread_transfer_in_progress
+    THEN
+      do_send_wait_finish(partner,state_temp)
+    ELSE
+    LET
+      % Assert that the sender is not engaged in IPC with the receiver and that
+      % the handshake bit is not set.
+      state_temp = state_temp WITH [(assertions_held) := 
+                       state_temp`assertions_held AND NOT 
+                       in_ipc(state_temp`this,partner,state_temp) AND NOT 
+         state_temp`threads(state_temp`this)`state`thread_transfer_in_progress]
+    IN
+      % Check if a timeout has occured, if so abort the sending.
+      IF state_temp`timeout THEN
+      LET
+        % Assert that the sender is not engaged in IPC with the receiver and
+        % that the handshake bit is not set.
+        state_temp = state_temp WITH [(assertions_held) := 
+               state_temp`assertions_held AND NOT 
+               state_temp`threads(state_temp`this)`state`thread_ipc_in_progress]
+      IN
+        abort_send(partner,state_temp)
+      % Abort the send if the partner was killed.
+      ELSIF state_temp`threads(partner)`state`thread_dead THEN
+        abort_send(partner,state_temp)
+      ELSE
+      LET
+        % Assert that the sender is still engaged in the handshake with the
+        % receiver.
+        state_temp = state_temp WITH [(assertions_held) := 
+              state_temp`assertions_held AND 
+              state_temp`threads(state_temp`this)`state`thread_ipc_in_progress],
+
+        % Set the polling state
+        bits = TS_empty WITH [thread_polling := true], 
+        state_temp = state_add_dirty(state_temp`this,bits,state_temp)
+      IN
+        do_send_wait_finish(partner,state_temp)
+      ENDIF
+    ENDIF 
+  
+  % Wait for the receiver to become ready for the sender.
+  do_send_wait(partner: Thread_pointer,state_old: System_state): System_state =
+    LET
+      % Assert that the no other thread but the zero- or <this> thread hold the
+      % thread lock on the receiver.
+      state_temp = state_old WITH [(assertions_held) :=
+                      state_old`assertions_held AND 
+                     (state_old`threads(partner)`thread_lock = Zero_thread OR
+                      state_old`threads(partner)`thread_lock = state_old`this)],
+ 
+      % Create a thread state which bits to add to the <this> thread.
+      add_bits = TS_empty WITH [thread_polling := true,
+                                thread_send_in_progress := true,
+                                thread_ipc_in_progress := true],
+      state_temp = state_add_dirty(state_temp`this,add_bits,state_temp),
+      
+      % Lock the partner before continuing.
+      state_temp = lock_dirty(partner,state_temp),
+
+      % Add a preemption point
+      state_temp = preemption_point(partner,false,state_temp) 
+    IN
+      % Check if IPC was cancelled.
+      IF state_temp`threads(state_temp`this)`state`thread_cancel THEN
+      LET
+        % Remove the thread lock on the receiver.
+        state_temp = clear_dirty(partner,state_temp)
+      IN
+        % Delete the bits from the <this> thread's state.
+        state_del_dirty(state_temp`this,TS_ipc_end_mask,
+                        state_temp) WITH [error := true]
+      ELSE
+        % Return if the receiver is ready to receive a message from the <this>
+        % thread. If not enter the waiting loop.
+        IF sender_ok(state_temp`this,partner,state_temp) THEN
+          state_temp WITH [error := false]
+        ELSE
+        LET
+          % Enqueue the sender in the sender list of the receiver.
+          state_temp = sender_enqueue(partner,state_temp),
+
+           % Give the receiver time to become ready for the sender.
+          state_temp = preemption_point(partner,true,state_temp)
+        IN 
+          % Abort the sending if a timeout occured.
+          IF state_temp`timeout THEN
+            abort_send(partner,state_temp)        
+          ELSE
+            do_send_wait_loop(partner,state_temp)
+          ENDIF
+        ENDIF
+      ENDIF
+
+  % Try to have the sender and receiver agree upon engaging in IPC.
+  try_handshake_receiver(partner: Thread_pointer, 
+                         state_old: System_state): System_state =
+    % Immediately return with an error if the partner is the Zero- or Nil thread
+    % or the partner is an invalid thread.
+    IF partner = Zero_thread OR
+       state_old`threads(partner)`state`thread_invalid OR 
+       partner = Nil_thread
+    THEN
+      state_old WITH [error := true]
+    ELSE
+    LET 
+      % Set the <handshake_attempted> field to true because the receiver is 
+      % valid.
+      state_temp = state_old WITH [handshake_attempted := true] 
+    IN
+      LET state_temp = 
+        % If a thread lock is already held on the receiver, acquire the thread 
+        % lock (after a preemption point has been set).
+        IF NOT state_temp`threads(partner)`thread_lock = Zero_thread THEN
+        LET state_temp = preemption_point(partner,false,state_temp) IN
+          lock_dirty(partner,state_temp)
+        ELSE
+          state_temp
+        ENDIF
+      IN
+        % Check if the result of the preemption point was that IPC has been 
+        % canceled, if so remove the thread lock and return an error.
+        IF state_temp`threads(state_temp`this)`state`thread_cancel THEN
+          clear_dirty(partner,state_temp) WITH [error := true]
+        ELSE
+          % IPC has not been cancelled, now check if the receiver is ready for
+          % the sender. If not, wait for the receiver to become ready.
+          IF NOT sender_ok(state_temp`this,partner,state_temp) THEN
+          LET
+            state_temp = do_send_wait(partner,state_temp)
+          IN
+            % Assert that the sender does not hold a thread lock on the receiver
+            % when an error occured.
+            state_temp WITH [(assertions_held) :=
+               state_temp`assertions_held AND 
+              (NOT state_temp`error OR 
+               NOT state_temp`threads(partner)`thread_lock = state_temp`this)]
+          ELSE
+            state_temp WITH [error := false]
+          ENDIF
+        ENDIF
+    ENDIF 
+
+  % Handle the send part in the do_ipc() function.
+  do_ipc_send_part(partner: Thread_pointer, have_receive: bool, 
+                   state_old: System_state): System_state =
+    % Start with a handshake and immediately return if an error occured.
+    LET state_temp = try_handshake_receiver(partner,state_old) IN
+    IF state_temp`error THEN
+      state_temp   
+    ELSE 
+    LET 
+      % Assert that after a successful handshake the sender thread is no 
+      % longer polling.
+      state_temp = state_temp WITH [(assertions_held) := 
+                     state_temp`assertions_held AND 
+                 NOT state_temp`threads(state_temp`this)`state`thread_polling],
+    
+      % Initialize IPC.
+      state_temp = ipc_init(state_temp`this,partner,state_temp),        
+      
+      % Transfer the IPC message.
+      state_temp = transfer_msg(partner,state_temp),
+       
+      % Assert that the thread lock on the receiver is held by the <this> thread
+      % or that there is no thread lock.
+      state_temp = state_temp WITH [(assertions_held) := 
+                       state_temp`assertions_held AND 
+                      (state_temp`threads(partner)`thread_lock = Zero_thread OR 
+                       state_temp`threads(partner)`thread_lock = state_temp`this)]
+    IN
+      % Check if an error occured or that there is no receive part.
+      IF state_temp`error OR NOT have_receive THEN
+      LET 
+        state_new = 
+          % If the partner is still engaged in IPC, wake him up.
+          IF in_ipc(state_temp`this,partner,state_temp) THEN
+            wake_receiver(partner,state_temp) 
+          ELSE
+            state_temp
+          ENDIF,
+        % Remove the thread lock on the partner, adjust the state of the <this>
+        % thread and return the error state of the message transfer.
+        state_new = clear_dirty(partner,state_new)
+      IN
+        state_del(state_new`this,TS_ipc_end_mask,
+                  state_new) WITH [error := state_temp`error]
+      ELSE
+      % Remove the thread lock on the partner.
+      LET state_temp = clear_dirty_dont_switch(partner,state_temp) IN
+        % Return an error if the partner is not engaged in IPC with us. This is
+        % because we only arrive here if no error occured during message 
+        % transfer and there is a receive part, which means that the partner
+        % has yet to send a message to us and should therefore still be engaged
+        % in IPC with us. If the partner is still in IPC with us, wake him up 
+        % to enable him to send his message.
+        IF NOT in_ipc(state_temp`this,partner,state_temp) THEN           
+          state_del(state_temp`this,TS_ipc_end_mask,
+                    state_temp) WITH [error := true]
+        ELSE
+          wake_receiver(partner,state_temp)
+        ENDIF
+      ENDIF
+    ENDIF
+ 
+  % Handle the receive part in the do_ipc() function.
+  do_ipc_receive_part(sender: Thread_pointer, have_receive: bool,
+                      state_old: System_state): System_state =
+    state_old WITH [(assertions_held) := 
+                     state_old`assertions_held AND
+                     have_receive]
+     
+  % Handle IPC between the sender- and receiver.
+  do_ipc(have_send: bool, partner: Thread_pointer, have_receive: bool,
+         sender: Thread_pointer, state_old: System_state): System_state =    
+    LET state_temp =
+      % Check if there is a send part.
+      IF have_send THEN
+        do_ipc_send_part(partner,have_receive,state_old)
+      ELSE
+        state_old
+      ENDIF
+    IN
+      % If no error occured in the send part and there is a receive part, 
+      % enter the receive part and otherwise return.
+      IF have_receive AND NOT state_temp`error THEN
+        do_ipc_receive_part(sender,have_receive,state_temp)
+      ELSE
+        state_temp
+      ENDIF
+
+  % Execute an IPC call.
+  %
+  % NOTE: we tried to make as few assumptions as possible on the system state
+  % but there are some fields that have to be initialized before engaging in 
+  % IPC. Naturally, before an IPC call is made there has not been any error,
+  % timeout, handshake attempted. Furthermore initially the assertions all hold.
+  sys_ipc(have_send: bool, partner: Thread_pointer,
+          have_receive: bool, sender: Thread_pointer,
+          state_old: System_state): System_state = 
+    LET state_temp = state_old WITH [(error)   := false,
+                                     (timeout) := false,
+                                     (handshake_attempted)  := false,
+                                     (assertions_held)      := true,
+                                     (receiver_initialized) := false]
+    IN
+      % Make sure there is either a send- or receive part, if so start IPC.
+      IF have_send OR have_receive THEN
+        do_ipc(have_send,partner,have_receive,sender,state_temp)
+      ELSE
+        state_temp WITH [(error) := true]
+      ENDIF
+
+END fiasco_functions
